@@ -1,0 +1,2849 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>印章小管家 - 儿童行为奖励与兑换系统</title>
+
+  <!-- PWA & iOS 主屏幕独立运行配置 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="印章小管家" />
+  <meta name="theme-color" content="#FDFBF7" />
+  <link id="favicon-icon" rel="icon" type="image/png" href="" />
+  <link id="apple-touch-icon" rel="apple-touch-icon" href="" />
+  <link id="app-manifest" rel="manifest" href="" />
+
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- 引入圆润可爱的字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans SC"', 'sans-serif'],
+            display: ['"Fredoka"', '"Noto Sans SC"', 'sans-serif'],
+          },
+          colors: {
+            paper: '#FDFBF7',
+            card: '#FFFFFF',
+            ink1: '#D83B66',
+            ink2: '#E69D28',
+            ink3: '#D92626',
+            ink4: '#2B5B84',
+            ink5: '#5D3A6A',
+            ink6: '#E69D28',
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* 手账纸张纹理与基础样式 */
+    body {
+      background-color: #F3EFE6;
+      background-image: radial-gradient(#E2DACB 1px, transparent 1px);
+      background-size: 18px 18px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .app-shell {
+      background-color: #FDFBF7;
+      box-shadow: 0 20px 50px -12px rgba(93, 58, 106, 0.14);
+    }
+
+    /* 手绘虚线边框效果 */
+    .sketch-border {
+      border: 2px dashed #E5DEC9;
+    }
+    .sketch-card {
+      border: 2px solid #F0EAE1;
+      box-shadow: 0 6px 0 #ECE4D7;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .sketch-card:active {
+      transform: translateY(2px);
+      box-shadow: 0 3px 0 #ECE4D7;
+    }
+
+    /* 立体按钮效果 */
+    .btn-3d {
+      transition: all 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .btn-3d:active {
+      transform: translateY(3px) scale(0.96);
+    }
+
+    /* 盖章下落震撼动效 */
+    @keyframes stampDrop {
+      0% {
+        transform: scale(2.4) rotate(-14deg);
+        opacity: 0.2;
+      }
+      55% {
+        transform: scale(0.86) rotate(4deg);
+        opacity: 1;
+      }
+      80% {
+        transform: scale(1.08) rotate(-2deg);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+      }
+    }
+    .animate-stamp-drop {
+      animation: stampDrop 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* 印泥扩散波纹 */
+    @keyframes inkRipple {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.75;
+      }
+      100% {
+        transform: scale(1.85);
+        opacity: 0;
+      }
+    }
+    .animate-ink-ripple {
+      animation: inkRipple 0.55s ease-out forwards;
+    }
+
+    /* 底部安全区适配 */
+    .pb-safe {
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5.2rem);
+    }
+    .nav-safe {
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+    }
+
+    /* 隐藏滚动条但保留滚动 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center text-stone-800 antialiased">
+
+  <!-- 彩带庆祝画布 -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+  <!-- 手机端/桌面端居中主容器 -->
+  <div class="app-shell w-full max-w-md min-h-screen flex flex-col relative overflow-x-hidden">
+
+    <!-- 顶部栏 -->
+    <header class="sticky top-0 z-30 bg-[#FDFBF7]/95 backdrop-blur-md border-b-2 border-[#EFE9DD] px-4 pt-3.5 pb-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div id="header-logo" class="w-10 h-10 rounded-2xl bg-rose-50 border-2 border-rose-200 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
+            <!-- JS 注入桌面图标或印章1小图标 -->
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-base font-black tracking-tight text-stone-800 leading-tight flex items-center gap-1.5">
+              <span id="header-app-title" class="truncate">印章小管家</span>
+            </h1>
+            <!-- 实时保存状态指示器 -->
+            <div id="save-status-badge" onclick="forceSyncNow()" title="点击立即同步保存"
+              class="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer transition-all">
+              <span>☁️</span>
+              <span>初始化同步中...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- 家长防误触锁 -->
+          <button id="parent-lock-btn" onclick="toggleParentLock()" title="家长防误触锁"
+            class="px-2.5 py-1.5 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-1 bg-stone-100 border-stone-200 text-stone-600 active:scale-95">
+            <span id="lock-icon">🔓</span>
+            <span id="lock-text" class="hidden xs:inline">已解锁</span>
+          </button>
+
+          <!-- 添加到桌面按钮 -->
+          <button onclick="openPwaModal()"
+            class="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-500 text-stone-900 border-2 border-amber-500 shadow-[0_2px_0_#D97706] active:translate-y-0.5 transition-all flex items-center gap-1">
+            <span>📲</span>
+            <span>装到桌面</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 顶部统计胶囊栏 -->
+      <div class="grid grid-cols-3 gap-2 mt-3">
+        <div class="bg-white rounded-2xl px-3 py-2 border border-[#EFE8DC] flex flex-col items-center justify-center">
+          <span class="text-[10px] font-bold text-stone-400">当前正向印章</span>
+          <span id="stat-total" class="font-display text-xl font-bold text-rose-600 leading-tight">0</span>
+        </div>
+        <div class="bg-white rounded-2xl px-3 py-2 border border-[#EFE8DC] flex flex-col items-center justify-center">
+          <span class="text-[10px] font-bold text-stone-400">今日新增</span>
+          <span id="stat-today" class="font-display text-xl font-bold text-emerald-600 leading-tight">+0</span>
+        </div>
+        <div class="bg-white rounded-2xl px-3 py-2 border border-[#EFE8DC] flex flex-col items-center justify-center">
+          <span class="text-[10px] font-bold text-stone-400">可换奖品数</span>
+          <span id="stat-redeemable" class="font-display text-xl font-bold text-amber-600 leading-tight">0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主内容区域 -->
+    <main class="flex-1 px-4 pt-4 pb-safe">
+
+      <!-- ==================== 页面 1: 盖章打卡 ==================== -->
+      <section id="view-stamps" class="space-y-4">
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-5 rounded-full bg-rose-400 inline-block"></span>
+            <h2 class="font-bold text-base text-stone-800">我的印章盒（点击数字可手动改数）</h2>
+          </div>
+          <button onclick="openBatchQuickModal()" class="text-xs font-bold text-amber-700 bg-amber-100/80 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200">
+            ✨ 批量调整
+          </button>
+        </div>
+
+        <!-- 6种印章卡片网格 -->
+        <div id="stamps-grid" class="grid grid-cols-2 gap-3.5">
+          <!-- 由 JS 动态渲染 6 张手绘风印章卡片 -->
+        </div>
+
+        <!-- 温馨小贴士 -->
+        <div class="bg-amber-50/90 sketch-border rounded-2xl p-3.5 text-xs text-amber-900/80 space-y-1">
+          <div class="font-bold text-amber-800 flex items-center gap-1">
+            <span>💡</span> <span>印章小规则提示</span>
+          </div>
+          <p>• 完成对应好习惯点击「盖一个」，即可获得专属印章与清脆盖章声！</p>
+          <p>• 点击印章卡片中间的<strong class="text-amber-900">大数字</strong>，家长可直接输入或增减任意数量（支持改 0 清空）。</p>
+          <p>• 所有修改均会<strong>云端 + 本地双重自动保存</strong>，关闭或刷新页面数据永不丢失。</p>
+        </div>
+      </section>
+
+      <!-- ==================== 页面 2: 兑换商店与合成中心 ==================== -->
+      <section id="view-shop" class="hidden space-y-5">
+
+        <!-- 印章双向工坊（合成 & 反向分解：2个印章6 ⇄ 1个印章3） -->
+        <div class="bg-gradient-to-br from-amber-50 via-orange-50/80 to-rose-50/70 rounded-3xl p-4 border-2 border-amber-200 shadow-[0_5px_0_#FDE68A] space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-lg">🔮</span>
+              <h2 class="font-black text-base text-amber-900">印章双向兑换工坊</h2>
+            </div>
+            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-amber-700 border border-amber-200">
+              2个印章6 ⇄ 1个印章3
+            </span>
+          </div>
+
+          <!-- 模式切换胶囊：正向合成 vs 反向分解 -->
+          <div class="grid grid-cols-2 gap-1.5 bg-amber-100/70 p-1 rounded-2xl border border-amber-200/80">
+            <button id="workshop-tab-craft" onclick="switchWorkshopMode('craft')"
+              class="py-1.5 px-2 rounded-xl text-xs font-black transition-all bg-white text-amber-900 shadow-xs">
+              ✨ 合成（印章6 ➡️ 印章3）
+            </button>
+            <button id="workshop-tab-split" onclick="switchWorkshopMode('split')"
+              class="py-1.5 px-2 rounded-xl text-xs font-bold transition-all text-amber-800/75 hover:text-amber-900">
+              🧩 反向分解（印章3 ➡️ 印章6）
+            </button>
+          </div>
+
+          <!-- 模式 A：正向合成（2个印章6 ➡️ 1个印章3） -->
+          <div id="workshop-panel-craft" class="space-y-3">
+            <div class="bg-white/95 rounded-2xl p-3 border border-amber-100 flex items-center justify-between gap-2">
+              <div class="flex flex-col items-center flex-1">
+                <div class="flex items-center -space-x-2" id="craft-source-icon"></div>
+                <span class="text-xs font-bold text-stone-700 mt-1">2个印章6 (家务)</span>
+                <span class="text-[11px] text-stone-400">当前拥有: <strong id="craft-s6-count" class="text-amber-600">0</strong></span>
+              </div>
+
+              <div class="flex flex-col items-center text-amber-500 font-black">
+                <span class="text-[11px]">合成</span>
+                <span class="text-xl leading-none">➡️</span>
+              </div>
+
+              <div class="flex flex-col items-center flex-1">
+                <div id="craft-target-icon"></div>
+                <span class="text-xs font-bold text-stone-700 mt-1">1个印章3 (做题)</span>
+                <span class="text-[11px] text-stone-400">当前拥有: <strong id="craft-s3-count" class="text-red-600">0</strong></span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-craft-one" onclick="handleCraft(1)"
+                class="btn-3d py-2.5 px-3 rounded-xl font-bold text-xs bg-amber-400 text-stone-900 border-2 border-amber-500 shadow-[0_3px_0_#D97706] disabled:opacity-40 disabled:pointer-events-none">
+                ✨ 合成 1 次 (耗2得1)
+              </button>
+              <button id="btn-craft-max" onclick="handleCraftMax()"
+                class="btn-3d py-2.5 px-3 rounded-xl font-bold text-xs bg-orange-500 text-white border-2 border-orange-600 shadow-[0_3px_0_#C2410C] disabled:opacity-40 disabled:pointer-events-none">
+                ⚡ 全部合成 (<span id="craft-max-num">0</span>个)
+              </button>
+            </div>
+          </div>
+
+          <!-- 模式 B：反向分解（1个印章3 ➡️ 2个印章6） -->
+          <div id="workshop-panel-split" class="hidden space-y-3">
+            <div class="bg-white/95 rounded-2xl p-3 border border-rose-100 flex items-center justify-between gap-2">
+              <div class="flex flex-col items-center flex-1">
+                <div id="split-source-icon"></div>
+                <span class="text-xs font-bold text-stone-700 mt-1">1个印章3 (做题)</span>
+                <span class="text-[11px] text-stone-400">当前拥有: <strong id="split-s3-count" class="text-red-600">0</strong></span>
+              </div>
+
+              <div class="flex flex-col items-center text-rose-500 font-black">
+                <span class="text-[11px]">反向分解</span>
+                <span class="text-xl leading-none">➡️</span>
+              </div>
+
+              <div class="flex flex-col items-center flex-1">
+                <div class="flex items-center -space-x-2" id="split-target-icon"></div>
+                <span class="text-xs font-bold text-stone-700 mt-1">2个印章6 (家务)</span>
+                <span class="text-[11px] text-stone-400">当前拥有: <strong id="split-s6-count" class="text-amber-600">0</strong></span>
+              </div>
+            </div>
+
+            <div class="text-[11px] text-rose-800/80 bg-rose-50/90 px-3 py-1.5 rounded-xl border border-rose-200/70">
+              💡 想换冰淇淋等「印章6」奖品但数量不够？可把 1 个印章3 拆成 2 个印章6！
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-split-one" onclick="handleSplit(1)"
+                class="btn-3d py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-500 text-white border-2 border-rose-600 shadow-[0_3px_0_#BE123C] disabled:opacity-40 disabled:pointer-events-none">
+                🧩 分解 1 次 (耗1得2)
+              </button>
+              <button id="btn-split-custom" onclick="openCustomSplitModal()"
+                class="btn-3d py-2.5 px-3 rounded-xl font-bold text-xs bg-white text-rose-700 border-2 border-rose-300 shadow-[0_3px_0_#FECDD3] disabled:opacity-40 disabled:pointer-events-none">
+                🔢 自定义/全部分解 (<span id="split-max-num">0</span>)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 奖励兑换列表 -->
+        <div class="space-y-3">
+          <div class="px-1 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-5 rounded-full bg-red-500 inline-block"></span>
+                <h2 class="font-bold text-base text-stone-800">心愿奖励兑换商店</h2>
+              </div>
+              <button onclick="switchTab('history'); setTimeout(() => openRewardRuleEditor(), 80)"
+                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100">
+                ⚙️ 管理规则
+              </button>
+            </div>
+
+            <!-- 6种印章全览余额栏 -->
+            <div id="shop-all-stamps-bar" class="grid grid-cols-6 gap-1.5 bg-white p-2 rounded-2xl border border-[#EFE8DC] shadow-2xs">
+              <!-- JS 动态渲染 6 种印章余额 -->
+            </div>
+
+            <!-- 按印章类型筛选兑换奖品 -->
+            <div id="shop-filter-pills" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              <!-- JS 动态渲染筛选胶囊 -->
+            </div>
+          </div>
+
+          <div id="rewards-list" class="space-y-3">
+            <!-- 由 JS 渲染心愿兑换卡片 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 页面 3: 管理后台与成长账本 ==================== -->
+      <section id="view-history" class="hidden space-y-5">
+
+        <!-- 模块 0：云端账户与数据同步状态卡片 -->
+        <div class="bg-gradient-to-br from-sky-50 via-indigo-50/70 to-emerald-50/60 rounded-3xl p-4 border-2 border-sky-200 shadow-[0_4px_0_#BAE6FD] space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-lg">☁️</span>
+              <h2 class="font-black text-sm text-sky-950">云端账户与数据双重保险</h2>
+            </div>
+            <button onclick="forceSyncNow()"
+              class="btn-3d text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white text-sky-700 border border-sky-300 shadow-2xs">
+              🔄 立即同步
+            </button>
+          </div>
+
+          <div class="bg-white/90 rounded-2xl p-3 border border-sky-100 space-y-1.5 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="text-stone-500 font-medium">同步引擎状态：</span>
+              <span id="cloud-sync-detail" class="font-bold text-emerald-600">本地 + 云端自动保护中</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-stone-500 font-medium shrink-0">当前家庭账户：</span>
+              <span id="cloud-account-label" class="font-bold text-stone-800 truncate">游客自动云端存档</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-stone-500 font-medium shrink-0">设备识别码：</span>
+              <span id="cloud-uid-label" class="font-mono text-[10px] text-stone-400 truncate max-w-[180px]">加载中...</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="openAccountSyncModal()"
+              class="btn-3d py-2 px-3 rounded-xl font-bold text-xs bg-sky-600 text-white border border-sky-700 shadow-[0_2px_0_#0369A1]">
+              🔑 绑定/切换家庭账号
+            </button>
+            <button onclick="exportBackup()"
+              class="btn-3d py-2 px-3 rounded-xl font-bold text-xs bg-white text-stone-700 border border-stone-200">
+              📤 导出本地文件备份
+            </button>
+          </div>
+          <p class="text-[11px] text-sky-900/75 leading-relaxed">
+            💡 绑定家长邮箱账号后，在手机桌面 App 与电脑浏览器登录同一邮箱，即可实时共享同一份印章与奖品设置！
+          </p>
+        </div>
+
+        <!-- 模块 A：6种印章库存与快捷增减台 -->
+        <div class="bg-white rounded-3xl p-3.5 border-2 border-[#EFE8DC] shadow-[0_4px_0_#ECE4D7] space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-4 rounded-full bg-rose-500 inline-block"></span>
+              <h2 class="font-black text-sm text-stone-800">1. 全部 6 种印章库存后台</h2>
+            </div>
+            <button onclick="openBatchQuickModal()" class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+              批量改数
+            </button>
+          </div>
+          <div id="backend-stamps-grid" class="grid grid-cols-3 gap-2">
+            <!-- JS 动态渲染 6 种印章库存快捷增减卡片 -->
+          </div>
+        </div>
+
+        <!-- 模块 B：奖品兑换规则配置中心（支持选择印章1-6） -->
+        <div class="bg-white rounded-3xl p-3.5 border-2 border-[#EFE8DC] shadow-[0_4px_0_#ECE4D7] space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-4 rounded-full bg-amber-500 inline-block"></span>
+              <h2 class="font-black text-sm text-stone-800">2. 兑换规则配置（印章1~6）</h2>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="confirmResetDefaultRewards()" title="恢复初始默认兑换规则"
+                class="text-[11px] font-bold px-2 py-1 rounded-lg bg-stone-100 text-stone-500 hover:text-stone-700">
+                恢复默认
+              </button>
+              <button onclick="openRewardRuleEditor()"
+                class="btn-3d text-[11px] font-black px-2.5 py-1 rounded-lg bg-amber-400 text-stone-900 border border-amber-500 shadow-2xs">
+                ➕ 新增兑换
+              </button>
+            </div>
+          </div>
+
+          <div id="backend-rewards-list" class="space-y-2">
+            <!-- JS 动态渲染所有可编辑兑换规则 -->
+          </div>
+        </div>
+
+        <!-- 模块 C：桌面图标个性化设置快捷卡片 -->
+        <div class="bg-gradient-to-r from-amber-50 to-rose-50 rounded-2xl p-3.5 border-2 border-amber-200/80 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img id="settings-icon-thumb" src="" alt="当前桌面图标" class="w-11 h-11 rounded-2xl border-2 border-white shadow-sm shrink-0 object-cover bg-white" />
+            <div class="min-w-0">
+              <div class="text-xs font-black text-stone-800 truncate">自定义手机桌面图标 & 名称</div>
+              <div class="text-[11px] text-stone-500 truncate">支持7款手绘印章或相册照片上传</div>
+            </div>
+          </div>
+          <button onclick="openPwaModal()" class="btn-3d shrink-0 px-3 py-1.5 rounded-xl bg-white text-amber-800 font-bold text-xs border border-amber-300 shadow-xs">
+            🎨 更换图标
+          </button>
+        </div>
+
+        <!-- 模块 D：成长账本记录与备份 -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-5 rounded-full bg-sky-500 inline-block"></span>
+              <h2 class="font-bold text-base text-stone-800">3. 印章成长账本</h2>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="exportBackup()" class="text-xs font-bold px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50">
+                📤 导出
+              </button>
+              <button onclick="triggerImportBackup()" class="text-xs font-bold px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50">
+                📥 导入
+              </button>
+              <input type="file" id="import-file-input" accept=".json" class="hidden" onchange="handleImportFile(event)" />
+            </div>
+          </div>
+
+          <!-- 筛选胶囊栏 -->
+          <div id="history-filters" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+            <!-- JS 动态渲染筛选标签 -->
+          </div>
+
+          <!-- 记录明细列表 -->
+          <div id="history-list" class="space-y-2.5">
+            <!-- JS 动态渲染账本记录 -->
+          </div>
+        </div>
+
+        <!-- 危险操作区：重置数据 -->
+        <div class="pt-4 border-t border-dashed border-stone-200 flex justify-center">
+          <button onclick="confirmResetAll()" class="text-xs font-bold text-stone-400 hover:text-rose-600 px-3 py-2 rounded-xl transition-colors">
+            🗑️ 清空所有印章与账本数据
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 底部固定导航栏 -->
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-30 bg-white/95 backdrop-blur-md border-t-2 border-[#EFE9DD] px-4 pt-2 nav-safe">
+      <div class="grid grid-cols-3 gap-2">
+        <button onclick="switchTab('stamps')" id="nav-stamps"
+          class="nav-item flex flex-col items-center justify-center py-1.5 rounded-2xl font-bold text-xs transition-all bg-rose-50 text-rose-600">
+          <span class="text-xl mb-0.5">💮</span>
+          <span>盖章打卡</span>
+        </button>
+        <button onclick="switchTab('shop')" id="nav-shop"
+          class="nav-item flex flex-col items-center justify-center py-1.5 rounded-2xl font-bold text-xs transition-all text-stone-500 hover:bg-stone-50">
+          <span class="text-xl mb-0.5">🎁</span>
+          <span>兑换商店</span>
+        </button>
+        <button onclick="switchTab('history')" id="nav-history"
+          class="nav-item flex flex-col items-center justify-center py-1.5 rounded-2xl font-bold text-xs transition-all text-stone-500 hover:bg-stone-50">
+          <span class="text-xl mb-0.5">⚙️</span>
+          <span>管理后台</span>
+        </button>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- ==================== 通用自定义弹窗容器 ==================== -->
+  <div id="modal-backdrop" class="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div id="modal-card" class="bg-[#FDFBF7] w-full max-w-sm rounded-3xl border-2 border-[#EFE8DC] shadow-2xl p-5 transform transition-all">
+      <!-- 动态注入弹窗内容 -->
+    </div>
+  </div>
+
+  <!-- Toast 轻提示 -->
+  <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+    <div id="toast-inner" class="bg-stone-800/95 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
+    </div>
+  </div>
+
+  <!-- Firebase 云端实时持久化模块 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      signInAnonymously,
+      signInWithCustomToken,
+      onAuthStateChanged,
+      EmailAuthProvider,
+      linkWithCredential,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 对外暴露给全局逻辑的云端同步桥接器
+    window.CloudSyncBridge = {
+      ready: false,
+      user: null,
+      db: null,
+      auth: null,
+      appId: typeof __app_id !== 'undefined' ? __app_id : 'stamp-manager-default',
+      unsubscribeSnapshot: null,
+      isApplyingRemote: false,
+
+      async init() {
+        try {
+          if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+            window.updateSaveStatusUI('local', '📱 本地自动已保存');
+            return;
+          }
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          this.auth = getAuth(app);
+          this.db = getFirestore(app);
+
+          // 优先使用平台注入的自定义 Token，否则自动匿名登录
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(this.auth, __initial_auth_token);
+          } else if (!this.auth.currentUser) {
+            await signInAnonymously(this.auth);
+          }
+
+          onAuthStateChanged(this.auth, async (user) => {
+            if (!user) {
+              try {
+                await signInAnonymously(this.auth);
+              } catch (err) {
+                console.warn('匿名重新登录失败:', err);
+              }
+              return;
+            }
+            this.user = user;
+            this.ready = true;
+            window.refreshAccountUI();
+            await this.attachUserDocListener(user.uid);
+          });
+        } catch (err) {
+          console.error('Firebase 初始化异常，降级为本地双写保存:', err);
+          window.updateSaveStatusUI('local', '📱 本地自动已保存');
+        }
+      },
+
+      getUserStateDocRef(uid) {
+        // 严格遵循 /artifacts/{appId}/users/{userId}/{collectionName}/{docId}
+        return doc(this.db, 'artifacts', this.appId, 'users', uid, 'stamp_system', 'main_state');
+      },
+
+      async attachUserDocListener(uid) {
+        if (this.unsubscribeSnapshot) {
+          this.unsubscribeSnapshot();
+          this.unsubscribeSnapshot = null;
+        }
+        const docRef = this.getUserStateDocRef(uid);
+
+        // 首次连接先比对本地与云端时间戳，避免空云端覆盖本地已有修改
+        try {
+          const snap = await getDoc(docRef);
+          const localState = window.getCurrentAppState();
+          if (snap.exists()) {
+            const remoteData = snap.data();
+            const remoteUpdated = remoteData.updatedAt || 0;
+            const localUpdated = localState.updatedAt || 0;
+            if (remoteUpdated > localUpdated) {
+              this.isApplyingRemote = true;
+              window.applyRemoteAppState(remoteData);
+              this.isApplyingRemote = false;
+            } else if (localUpdated > 0) {
+              await this.pushStateToCloud(localState);
+            }
+          } else {
+            // 云端尚无存档，立刻把当前数据写入云端建档
+            await this.pushStateToCloud(localState);
+          }
+          window.updateSaveStatusUI('synced', '☁️ 云端 + 本地已同步');
+        } catch (err) {
+          console.error('首次读取云端状态失败:', err);
+          window.updateSaveStatusUI('local', '📱 本地已保存 (离线)');
+        }
+
+        // 建立实时监听（多端同步）
+        this.unsubscribeSnapshot = onSnapshot(
+          docRef,
+          (snapshot) => {
+            if (!snapshot.exists()) return;
+            const remoteData = snapshot.data();
+            const localState = window.getCurrentAppState();
+            if ((remoteData.updatedAt || 0) > (localState.updatedAt || 0)) {
+              this.isApplyingRemote = true;
+              window.applyRemoteAppState(remoteData);
+              this.isApplyingRemote = false;
+              window.updateSaveStatusUI('synced', '☁️ 已同步最新修改');
+            }
+          },
+          (error) => {
+            console.error('Firestore 实时监听错误:', error);
+            window.updateSaveStatusUI('local', '📱 本地已保存');
+          }
+        );
+      },
+
+      async pushStateToCloud(stateObj) {
+        if (!this.ready || !this.user || !this.db || this.isApplyingRemote) {
+          window.updateSaveStatusUI('local', '📱 本地已自动保存');
+          return;
+        }
+        try {
+          window.updateSaveStatusUI('saving', '🔄 正在保存到云端...');
+          const docRef = this.getUserStateDocRef(this.user.uid);
+          // 清理可能过大的自定义图片（限制在 400KB 以内确保 Firestore 1MB 限制绝对安全）
+          const safeIconPref = { ...(stateObj.iconPref || {}) };
+          if (safeIconPref.customImageDataUrl && safeIconPref.customImageDataUrl.length > 420000) {
+            safeIconPref.customImageDataUrl = '';
+          }
+          const payload = {
+            counts: stateObj.counts,
+            rewards: stateObj.rewards,
+            logs: (stateObj.logs || []).slice(0, 300),
+            parentLock: Boolean(stateObj.parentLock),
+            iconPref: safeIconPref,
+            updatedAt: stateObj.updatedAt || Date.now()
+          };
+          await setDoc(docRef, payload, { merge: true });
+          window.updateSaveStatusUI('synced', '☁️ 已自动保存');
+        } catch (err) {
+          console.error('写入云端失败:', err);
+          window.updateSaveStatusUI('local', '📱 本地已保存 (待联网同步)');
+        }
+      },
+
+      // 绑定邮箱密码到当前游客账号，或登录已有家庭邮箱账号
+      async bindOrLoginEmail(email, password, mode) {
+        if (!this.auth) throw new Error('云服务尚未就绪');
+        if (mode === 'bind') {
+          if (this.auth.currentUser && this.auth.currentUser.isAnonymous) {
+            const cred = EmailAuthProvider.credential(email, password);
+            await linkWithCredential(this.auth.currentUser, cred);
+          } else {
+            await createUserWithEmailAndPassword(this.auth, email, password);
+          }
+          await this.pushStateToCloud(window.getCurrentAppState());
+        } else {
+          await signInWithEmailAndPassword(this.auth, email, password);
+        }
+        window.refreshAccountUI();
+      },
+
+      async switchToGuest() {
+        if (!this.auth) return;
+        await signOut(this.auth);
+        await signInAnonymously(this.auth);
+        window.refreshAccountUI();
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.CloudSyncBridge.init();
+    });
+  </script>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. 6款手绘风格 SVG 印章图案与行为规则配置（完整还原印章.jpg）
+     * ============================================================================
+     */
+    const STAMP_CONFIGS = [
+      {
+        id: 1,
+        name: '跳绳小章鱼',
+        task: '跳绳 100 个',
+        shortTask: '跳绳100个',
+        color: '#D83B66',
+        bgTint: '#FFF1F5',
+        borderTint: '#FBCFE8',
+        badgeBg: '#FCE7F3',
+        isPenalty: false,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M33 34 C26 26, 22 29, 25 36 C26.5 39.5, 28.5 41.5, 30 43 C27 53, 23 64, 17 70 C13.5 73.5, 16.5 79, 22.5 77 C26.5 75.5, 29.5 76.5, 32.5 79.5 C36.5 83, 41.5 83, 45.5 79.5 C48.5 76.5, 51.5 76.5, 54.5 79.5 C58.5 83, 63.5 83, 67.5 79.5 C70.5 76.5, 73.5 75.5, 77.5 77 C83.5 79, 86.5 73.5, 83 70 C77 64, 73 53, 70 43 C71.5 41.5, 73.5 39.5, 75 36 C78 29, 74 26, 67 34 C60 31, 40 31, 33 34 Z"
+              stroke="#D83B66" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="42" cy="48" r="2.8" fill="#D83B66"/>
+            <circle cx="58" cy="48" r="2.8" fill="#D83B66"/>
+          </svg>`
+      },
+      {
+        id: 2,
+        name: '笑眯眯小章鱼',
+        task: '作业完成整洁',
+        shortTask: '作业整洁',
+        color: '#E69D28',
+        bgTint: '#FFFBEB',
+        borderTint: '#FDE68A',
+        badgeBg: '#FEF3C7',
+        isPenalty: false,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M33 34 C26 26, 22 29, 25 36 C26.5 39.5, 28.5 41.5, 30 43 C27 53, 23 64, 17 70 C13.5 73.5, 16.5 79, 22.5 77 C26.5 75.5, 29.5 76.5, 32.5 79.5 C36.5 83, 41.5 83, 45.5 79.5 C48.5 76.5, 51.5 76.5, 54.5 79.5 C58.5 83, 63.5 83, 67.5 79.5 C70.5 76.5, 73.5 75.5, 77.5 77 C83.5 79, 86.5 73.5, 83 70 C77 64, 73 53, 70 43 C71.5 41.5, 73.5 39.5, 75 36 C78 29, 74 26, 67 34 C60 31, 40 31, 33 34 Z"
+              stroke="#E69D28" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M37 49 C39 44, 44 44, 46 49" stroke="#E69D28" stroke-width="3.2" stroke-linecap="round"/>
+            <path d="M54 49 C56 44, 61 44, 63 49" stroke="#E69D28" stroke-width="3.2" stroke-linecap="round"/>
+          </svg>`
+      },
+      {
+        id: 3,
+        name: '爱心刷题小章鱼',
+        task: '完成做题练习',
+        shortTask: '做题练习',
+        color: '#D92626',
+        bgTint: '#FEF2F2',
+        borderTint: '#FECACA',
+        badgeBg: '#FEE2E2',
+        isPenalty: false,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 32 C50 32, 36 22, 36 13.5 C36 9, 39.8 5.5, 44.2 5.5 C47.1 5.5, 49.1 7.2, 50 9 C50.9 7.2, 52.9 5.5, 55.8 5.5 C60.2 5.5, 64 9, 64 13.5 C64 22, 50 32, 50 32 Z"
+              fill="#D92626"/>
+            <path d="M33 43 C26 35, 22 38, 25 45 C26.5 48.5, 28.5 50.5, 30 52 C27 61, 23 71, 17 77 C13.5 80.5, 16.5 86, 22.5 84 C26.5 82.5, 29.5 83.5, 32.5 86.5 C36.5 90, 41.5 90, 45.5 86.5 C48.5 83.5, 51.5 83.5, 54.5 86.5 C58.5 90, 63.5 90, 67.5 86.5 C70.5 83.5, 73.5 82.5, 77.5 84 C83.5 86, 86.5 80.5, 83 77 C77 71, 73 61, 70 52 C71.5 50.5, 73.5 48.5, 75 45 C78 38, 74 35, 67 43 C60 40, 40 40, 33 43 Z"
+              stroke="#D92626" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <ellipse cx="42" cy="56" rx="3.2" ry="2.2" fill="#D92626"/>
+            <ellipse cx="58" cy="56" rx="3.2" ry="2.2" fill="#D92626"/>
+          </svg>`
+      },
+      {
+        id: 4,
+        name: '晚安早起小章鱼',
+        task: '独立入睡并自主起床',
+        shortTask: '独立睡起',
+        color: '#2B5B84',
+        bgTint: '#EFF6FF',
+        borderTint: '#BFDBFE',
+        badgeBg: '#DBEAFE',
+        isPenalty: false,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M44 13 H56 L44 25 H56" stroke="#2B5B84" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M33 41 C24 36, 17 41, 18 47 C18.5 50, 22 49, 25 47 C27 46, 29 48, 29 51 C26 60, 22 70, 17 75 C13.5 78.5, 16.5 84, 22.5 82 C26.5 80.5, 29.5 81.5, 32.5 84.5 C36.5 88, 41.5 88, 45.5 84.5 C48.5 81.5, 51.5 81.5, 54.5 84.5 C58.5 88, 63.5 88, 67.5 84.5 C70.5 81.5, 73.5 80.5, 77.5 82 C83.5 84, 86.5 78.5, 83 75 C78 70, 74 60, 71 51 C71 48, 73 46, 75 47 C78 49, 81.5 50, 82 47 C83 41, 76 36, 67 41 C60 38, 40 38, 33 41 Z"
+              stroke="#2B5B84" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M35 55 C38 59, 43 59, 46 55" stroke="#2B5B84" stroke-width="3" stroke-linecap="round"/>
+            <path d="M54 55 C57 59, 62 59, 65 55" stroke="#2B5B84" stroke-width="3" stroke-linecap="round"/>
+          </svg>`
+      },
+      {
+        id: 5,
+        name: '叉叉眼提醒印章',
+        task: '表现不好（记录提醒）',
+        shortTask: '表现不好',
+        color: '#5D3A6A',
+        bgTint: '#F5F3FF',
+        borderTint: '#DDD6FE',
+        badgeBg: '#EDE9FE',
+        isPenalty: true,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M33 34 C26 26, 22 29, 25 36 C26.5 39.5, 28.5 41.5, 30 43 C27 53, 23 64, 17 70 C13.5 73.5, 16.5 79, 22.5 77 C26.5 75.5, 29.5 76.5, 32.5 79.5 C36.5 83, 41.5 83, 45.5 79.5 C48.5 76.5, 51.5 76.5, 54.5 79.5 C58.5 83, 63.5 83, 67.5 79.5 C70.5 76.5, 73.5 75.5, 77.5 77 C83.5 79, 86.5 73.5, 83 70 C77 64, 73 53, 70 43 C71.5 41.5, 73.5 39.5, 75 36 C78 29, 74 26, 67 34 C60 31, 40 31, 33 34 Z"
+              stroke="#5D3A6A" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M37 45 L44 52 M44 45 L37 52" stroke="#5D3A6A" stroke-width="3" stroke-linecap="round"/>
+            <path d="M56 45 L63 52 M63 45 L56 52" stroke="#5D3A6A" stroke-width="3" stroke-linecap="round"/>
+          </svg>`
+      },
+      {
+        id: 6,
+        name: '微笑小海星',
+        task: '主动做家务',
+        shortTask: '做家务',
+        color: '#E69D28',
+        bgTint: '#FFFBEB',
+        borderTint: '#FDE68A',
+        badgeBg: '#FEF3C7',
+        isPenalty: false,
+        svg: (size = 64) => `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 14 C55 14, 57 31, 59 38 C66 38, 84 34, 86 39 C88 44, 73 54, 68 59 C71 66, 80 80, 76 84 C72 88, 57 76, 50 71 C43 76, 28 88, 24 84 C20 80, 29 66, 32 59 C27 54, 12 44, 14 39 C16 34, 34 38, 41 38 C43 31, 45 14, 50 14 Z"
+              stroke="#E69D28" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="44" cy="49" r="2.4" fill="#E69D28"/>
+            <circle cx="56" cy="49" r="2.4" fill="#E69D28"/>
+            <path d="M43 55 C46 60, 54 60, 57 55" stroke="#E69D28" stroke-width="3" stroke-linecap="round"/>
+            <line x1="50" y1="22" x2="50" y2="28" stroke="#E69D28" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="74" y1="43" x2="69" y2="46" stroke="#E69D28" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="26" y1="43" x2="31" y2="46" stroke="#E69D28" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="66" y1="74" x2="62" y2="69" stroke="#E69D28" stroke-width="2.4" stroke-linecap="round"/>
+            <line x1="34" y1="74" x2="38" y2="69" stroke="#E69D28" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>`
+      }
+    ];
+
+    /**
+     * ============================================================================
+     * 2. 奖励兑换配置表（默认 9 条兑换规则，支持后台自由增删改并使用印章 1-6）
+     * ============================================================================
+     */
+    const DEFAULT_REWARD_ITEMS = [
+      { id: 'r1', title: '书包 或者 衣服', emoji: '🎒', stampId: 3, cost: 20, tag: '超级大奖' },
+      { id: 'r2', title: '家庭烘焙体验', emoji: '🧁', stampId: 2, cost: 20, tag: '整洁专属' },
+      { id: 'r3', title: '心仪文具套装', emoji: '✏️', stampId: 3, cost: 10, tag: '学习好物' },
+      { id: 'r4', title: '30分钟动画片', emoji: '📺', stampId: 3, cost: 5, tag: '休闲时光' },
+      { id: 'r5', title: '拼图 或 乐高30分钟', emoji: '🧩', stampId: 3, cost: 5, tag: '益智玩乐' },
+      { id: 'r6', title: 'Switch 游戏20分钟', emoji: '🎮', stampId: 3, cost: 5, tag: '游戏时间' },
+      { id: 'r7', title: '冰淇淋 1 个', emoji: '🍦', stampId: 6, cost: 5, tag: '家务美味' },
+      { id: 'r8', title: '听故事 20 分钟', emoji: '📖', stampId: 3, cost: 3, tag: '亲子陪伴' },
+      { id: 'r9', title: 'MY ON阅读 或 IXL 1次', emoji: '💻', stampId: 3, cost: 1, tag: '日常随心换' },
+    ];
+
+    /**
+     * ============================================================================
+     * 3. 应用状态管理 & 双重本地存储 (IndexedDB + 内存容错) + 云端实时同步
+     * ============================================================================
+     */
+    const IDB_NAME = 'stamp_manager_db_v2';
+    const IDB_STORE = 'app_state_store';
+    const IDB_KEY = 'main_state';
+
+    const ICON_BG_PALETTE = [
+      { id: 'cream', name: '奶油米白', hex: '#FFFDF7', border: '#E8DEC8' },
+      { id: 'sakura', name: '樱花粉', hex: '#FFF0F5', border: '#FBCFE8' },
+      { id: 'sun', name: '暖阳黄', hex: '#FFFBEB', border: '#FDE68A' },
+      { id: 'sky', name: '天空蓝', hex: '#EFF6FF', border: '#BFDBFE' },
+      { id: 'mint', name: '薄荷绿', hex: '#ECFDF5', border: '#A7F3D0' },
+      { id: 'lavender', name: '香芋紫', hex: '#F5F3FF', border: '#DDD6FE' },
+    ];
+
+    const DEFAULT_ICON_PREF = {
+      presetId: 'stamp3',
+      bgColor: '#FFF0F5',
+      appName: '印章小管家',
+      customImageDataUrl: '',
+    };
+
+    const defaultState = {
+      counts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      rewards: JSON.parse(JSON.stringify(DEFAULT_REWARD_ITEMS)),
+      logs: [],
+      parentLock: false,
+      iconPref: { ...DEFAULT_ICON_PREF },
+      updatedAt: 0,
+    };
+
+    let appState = JSON.parse(JSON.stringify(defaultState));
+    let currentTab = 'stamps';
+    let workshopMode = 'craft';
+    let shopFilter = 'all';
+    let historyFilter = 'all';
+    let currentManifestBlobUrl = null;
+    let latestGeneratedIconPng = '';
+
+    // IndexedDB 本地持久化读写（即使 Safari 隐私/PWA 沙箱也能可靠持久化）
+    function openAppIndexedDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error('IndexedDB 不可用'));
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function readFromIndexedDB() {
+      try {
+        const db = await openAppIndexedDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_STORE, 'readonly');
+          const store = tx.objectStore(IDB_STORE);
+          const getReq = store.get(IDB_KEY);
+          getReq.onsuccess = () => resolve(getReq.result || null);
+          getReq.onerror = () => resolve(null);
+        });
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function writeToIndexedDB(stateData) {
+      try {
+        const db = await openAppIndexedDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_STORE, 'readwrite');
+          const store = tx.objectStore(IDB_STORE);
+          store.put(stateData, IDB_KEY);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        });
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function normalizeState(raw) {
+      if (!raw || typeof raw !== 'object') return JSON.parse(JSON.stringify(defaultState));
+      return {
+        counts: { ...defaultState.counts, ...(raw.counts || {}) },
+        rewards: Array.isArray(raw.rewards) && raw.rewards.length > 0
+          ? raw.rewards
+          : JSON.parse(JSON.stringify(DEFAULT_REWARD_ITEMS)),
+        logs: Array.isArray(raw.logs) ? raw.logs : [],
+        parentLock: Boolean(raw.parentLock),
+        iconPref: { ...DEFAULT_ICON_PREF, ...(raw.iconPref || {}) },
+        updatedAt: Number(raw.updatedAt || 0),
+      };
+    }
+
+    // 核心保存入口：同时写入 IndexedDB 本地与 Firestore 云端
+    function saveState() {
+      appState.updatedAt = Date.now();
+      const snapshotCopy = JSON.parse(JSON.stringify(appState));
+
+      // 1. 立即写入本地 IndexedDB
+      writeToIndexedDB(snapshotCopy);
+
+      // 2. 立即推送到云端 Firestore
+      if (window.CloudSyncBridge && window.CloudSyncBridge.ready) {
+        window.CloudSyncBridge.pushStateToCloud(snapshotCopy);
+      } else {
+        updateSaveStatusUI('local', '📱 本地已自动保存');
+      }
+    }
+
+    // 暴露给云端模块的桥接接口
+    window.getCurrentAppState = () => appState;
+    window.applyRemoteAppState = (remoteData) => {
+      appState = normalizeState(remoteData);
+      writeToIndexedDB(JSON.parse(JSON.stringify(appState)));
+      applyDesktopIconConfig(appState.iconPref);
+      renderAll();
+    };
+
+    function updateSaveStatusUI(status, text) {
+      const badge = document.getElementById('save-status-badge');
+      const detailEl = document.getElementById('cloud-sync-detail');
+      if (badge) {
+        if (status === 'saving') {
+          badge.className = 'mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer';
+          badge.innerHTML = `<span class="animate-spin inline-block">🔄</span><span>${text}</span>`;
+        } else if (status === 'synced') {
+          badge.className = 'mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer';
+          badge.innerHTML = `<span>☁️</span><span>${text}</span>`;
+        } else {
+          badge.className = 'mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 cursor-pointer';
+          badge.innerHTML = `<span>📱</span><span>${text}</span>`;
+        }
+      }
+      if (detailEl) {
+        detailEl.textContent = text;
+      }
+    }
+    window.updateSaveStatusUI = updateSaveStatusUI;
+
+    async function forceSyncNow() {
+      saveState();
+      showToast('☁️ 已触发立即保存并同步到云端！');
+    }
+
+    /**
+     * ============================================================================
+     * 4. Web Audio API 盖章音效 & 庆祝音效（无需外部音频文件）
+     * ============================================================================
+     */
+    function playStampSound(isPenalty = false) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        if (isPenalty) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(240, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.18);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        } else {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(360, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(820, ctx.currentTime + 0.11);
+          gain.gain.setValueAtTime(0.24, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+        }
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.22);
+      } catch (e) {}
+    }
+
+    function playCelebrationSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          const start = ctx.currentTime + idx * 0.08;
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.2, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.24);
+        });
+      } catch (e) {}
+    }
+
+    /**
+     * ============================================================================
+     * 5. 自定义桌面图标 Canvas 渲染引擎 & PWA 动态 Manifest 注入
+     * ============================================================================
+     */
+    function getPresetIconSvg(presetId, size = 64) {
+      if (presetId === 'badge') {
+        return `
+          <svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="41" stroke="#E69D28" stroke-width="2.6" stroke-dasharray="5 4" fill="#FFFFFF"/>
+            <path d="M32 42 C32 42, 21 34, 21 27.5 C21 24, 24 21.5, 27.5 21.5 C29.8 21.5, 31.3 23, 32 24.4 C32.7 23, 34.2 21.5, 36.5 21.5 C40 21.5, 43 24, 43 27.5 C43 34, 32 42, 32 42 Z" fill="#D92626"/>
+            <path d="M68 19 L71 27 L79 27.5 L73 33 L75 41 L68 36.5 L61 41 L63 33 L57 27.5 L65 27 Z" fill="#FBBF24" stroke="#E69D28" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M36 48 C30 42, 27 44, 29 50 C30 52.5, 31.5 54, 32.5 55 C30 63, 27 72, 22 77 C19 80, 21.5 84, 26.5 82.5 C30 81, 32.5 82, 35 84.5 C38.5 87, 42.5 87, 46 84.5 C48.5 82, 51.5 82, 54 84.5 C57.5 87, 61.5 87, 65 84.5 C67.5 82, 70 81, 73.5 82.5 C78.5 84, 81 80, 78 77 C73 72, 70 63, 67.5 55 C68.5 54, 70 52.5, 71 50 C73 44, 70 42, 64 48 C58.5 45.5, 41.5 45.5, 36 48 Z"
+              stroke="#D83B66" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="#FFF1F5"/>
+            <circle cx="43.5" cy="60" r="2.8" fill="#D83B66"/>
+            <circle cx="56.5" cy="60" r="2.8" fill="#D83B66"/>
+            <path d="M47 65 C48.5 67.5, 51.5 67.5, 53 65" stroke="#D83B66" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>`;
+      }
+      const num = parseInt(String(presetId).replace('stamp', ''), 10) || 3;
+      const cfg = STAMP_CONFIGS.find(s => s.id === num) || STAMP_CONFIGS[2];
+      return cfg.svg(size);
+    }
+
+    function renderDesktopIconToPng(pref = appState.iconPref) {
+      return new Promise((resolve) => {
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = pref.bgColor || '#FFF0F5';
+        ctx.fillRect(0, 0, size, size);
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.035)';
+        for (let x = 48; x < size; x += 64) {
+          for (let y = 48; y < size; y += 64) {
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        if (pref.presetId === 'custom' && pref.customImageDataUrl) {
+          const img = new Image();
+          img.onload = () => {
+            const pad = 44;
+            const innerSize = size - pad * 2;
+            const radius = 84;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(pad + radius, pad);
+            ctx.lineTo(pad + innerSize - radius, pad);
+            ctx.quadraticCurveTo(pad + innerSize, pad, pad + innerSize, pad + radius);
+            ctx.lineTo(pad + innerSize, pad + innerSize - radius);
+            ctx.quadraticCurveTo(pad + innerSize, pad + innerSize, pad + innerSize - radius, pad + innerSize);
+            ctx.lineTo(pad + radius, pad + innerSize);
+            ctx.quadraticCurveTo(pad, pad + innerSize, pad, pad + innerSize - radius);
+            ctx.lineTo(pad, pad + radius);
+            ctx.quadraticCurveTo(pad, pad, pad + radius, pad);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(img, pad, pad, innerSize, innerSize);
+            ctx.restore();
+
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 14;
+            ctx.stroke();
+
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(canvas.toDataURL('image/png'));
+          img.src = pref.customImageDataUrl;
+          return;
+        }
+
+        const svgStr = getPresetIconSvg(pref.presetId, 380);
+        const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr.trim());
+        const img = new Image();
+        img.onload = () => {
+          const drawSize = 376;
+          const offset = (size - drawSize) / 2;
+          ctx.drawImage(img, offset, offset, drawSize, drawSize);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(canvas.toDataURL('image/png'));
+        img.src = svgDataUrl;
+      });
+    }
+
+    async function applyDesktopIconConfig(pref = appState.iconPref) {
+      const pngDataUrl = await renderDesktopIconToPng(pref);
+      latestGeneratedIconPng = pngDataUrl;
+
+      const appTitle = (pref.appName || '').trim() || '印章小管家';
+      document.title = `${appTitle} - 儿童行为奖励与兑换系统`;
+
+      const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (appleTitleMeta) appleTitleMeta.setAttribute('content', appTitle);
+
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute('content', pref.bgColor || '#FDFBF7');
+
+      const appleIconEl = document.getElementById('apple-touch-icon');
+      if (appleIconEl) appleIconEl.href = pngDataUrl;
+
+      const faviconEl = document.getElementById('favicon-icon');
+      if (faviconEl) faviconEl.href = pngDataUrl;
+
+      const headerLogo = document.getElementById('header-logo');
+      if (headerLogo) {
+        headerLogo.innerHTML = `<img src="${pngDataUrl}" alt="App图标" class="w-full h-full object-cover" />`;
+      }
+      const headerTitle = document.getElementById('header-app-title');
+      if (headerTitle) headerTitle.textContent = appTitle;
+
+      const settingsThumb = document.getElementById('settings-icon-thumb');
+      if (settingsThumb) settingsThumb.src = pngDataUrl;
+
+      if (currentManifestBlobUrl) {
+        URL.revokeObjectURL(currentManifestBlobUrl);
+      }
+      const manifest = {
+        name: `${appTitle} - 儿童行为奖励系统`,
+        short_name: appTitle,
+        description: '可爱手账风儿童好习惯集印章与心愿兑换小助手',
+        start_url: window.location.href,
+        display: 'standalone',
+        background_color: pref.bgColor || '#FDFBF7',
+        theme_color: pref.bgColor || '#FDFBF7',
+        icons: [
+          { src: pngDataUrl, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: pngDataUrl, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+      };
+
+      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      currentManifestBlobUrl = URL.createObjectURL(manifestBlob);
+      const manifestEl = document.getElementById('app-manifest');
+      if (manifestEl) manifestEl.href = currentManifestBlobUrl;
+    }
+
+    function initPWA() {
+      applyDesktopIconConfig(appState.iconPref);
+    }
+
+    /**
+     * ============================================================================
+     * 6. 家长防误触算术验证门禁
+     * ============================================================================
+     */
+    function requireParentAuth(onSuccess) {
+      if (!appState.parentLock) {
+        onSuccess();
+        return;
+      }
+      const a = Math.floor(Math.random() * 8) + 6;
+      const b = Math.floor(Math.random() * 8) + 5;
+      const answer = a + b;
+
+      openModal(`
+        <div class="text-center space-y-3">
+          <div class="w-12 h-12 mx-auto rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl border-2 border-amber-200">
+            🔒
+          </div>
+          <h3 class="font-black text-base text-stone-800">家长防误触验证</h3>
+          <p class="text-xs text-stone-500">当前已开启家长保护锁，请回答算术题继续操作：</p>
+          <div class="bg-white rounded-2xl py-3 px-4 border-2 border-stone-200 font-display text-2xl font-bold text-stone-800">
+            ${a} + ${b} = ?
+          </div>
+          <input id="parent-math-input" type="number" inputmode="numeric" placeholder="输入答案"
+            class="w-full text-center font-display text-xl font-bold py-2.5 px-3 rounded-xl border-2 border-amber-300 focus:outline-none focus:border-amber-500 bg-white" />
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+            <button id="parent-math-submit" class="py-2.5 rounded-xl font-bold text-xs bg-amber-400 text-stone-900 border border-amber-500">确认验证</button>
+          </div>
+        </div>
+      `);
+
+      const input = document.getElementById('parent-math-input');
+      const submitBtn = document.getElementById('parent-math-submit');
+      setTimeout(() => input && input.focus(), 100);
+
+      const check = () => {
+        if (parseInt(input.value, 10) === answer) {
+          closeModal();
+          onSuccess();
+        } else {
+          showToast('❌ 答案不对哦，请再算算~');
+          input.value = '';
+          input.focus();
+        }
+      };
+      submitBtn.onclick = check;
+      input.onkeydown = (e) => { if (e.key === 'Enter') check(); };
+    }
+
+    function toggleParentLock() {
+      if (appState.parentLock) {
+        requireParentAuth(() => {
+          appState.parentLock = false;
+          saveState();
+          updateHeaderStats();
+          showToast('🔓 家长保护锁已关闭');
+        });
+      } else {
+        appState.parentLock = true;
+        saveState();
+        updateHeaderStats();
+        showToast('🔒 已开启家长保护锁（修改需算术验证）');
+      }
+    }
+
+    /**
+     * ============================================================================
+     * 7. 核心业务逻辑：增减印章、手动改数、合成/反向分解、兑换
+     * ============================================================================
+     */
+    function addLog(entry) {
+      appState.logs.unshift({
+        id: Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        time: new Date().toISOString(),
+        ...entry
+      });
+      if (appState.logs.length > 500) {
+        appState.logs = appState.logs.slice(0, 500);
+      }
+    }
+
+    function stampPlusOne(stampId) {
+      requireParentAuth(() => {
+        const cfg = STAMP_CONFIGS.find(s => s.id === stampId);
+        if (!cfg) return;
+
+        appState.counts[stampId] = (appState.counts[stampId] || 0) + 1;
+        addLog({
+          type: 'add',
+          stampId,
+          delta: 1,
+          detail: `${cfg.task}（获得印章${stampId}）`
+        });
+        saveState();
+        playStampSound(cfg.isPenalty);
+        renderAll();
+        triggerStampCardAnimation(stampId);
+        showToast(`${cfg.isPenalty ? '⚠️ 已记录' : '🎉 盖章成功！'} ${cfg.name} +1`);
+      });
+    }
+
+    function stampMinusOne(stampId) {
+      const current = appState.counts[stampId] || 0;
+      if (current <= 0) {
+        showToast('💡 当前印章数量已经是 0 啦');
+        return;
+      }
+      requireParentAuth(() => {
+        const cfg = STAMP_CONFIGS.find(s => s.id === stampId);
+        appState.counts[stampId] = Math.max(0, current - 1);
+        addLog({
+          type: 'sub',
+          stampId,
+          delta: -1,
+          detail: `手动扣除 1 个${cfg.name}`
+        });
+        saveState();
+        playStampSound(true);
+        renderAll();
+        showToast(`➖ 已扣除 1 个${cfg.name}`);
+      });
+    }
+
+    function openManualEditModal(stampId) {
+      requireParentAuth(() => {
+        const cfg = STAMP_CONFIGS.find(s => s.id === stampId);
+        const current = appState.counts[stampId] || 0;
+
+        openModal(`
+          <div class="space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-2xl flex items-center justify-center border-2" style="background:${cfg.bgTint};border-color:${cfg.borderTint}">
+                ${cfg.svg(46)}
+              </div>
+              <div>
+                <h3 class="font-black text-base text-stone-800">手动调整 · 印章${cfg.id}</h3>
+                <p class="text-xs text-stone-500">${cfg.name}（${cfg.shortTask}）</p>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-3 border-2 border-stone-200 flex items-center justify-between">
+              <button type="button" onclick="adjustModalInput(-1)" class="w-11 h-11 rounded-xl bg-stone-100 hover:bg-stone-200 font-black text-xl text-stone-700">-1</button>
+              <input id="manual-count-input" type="number" inputmode="numeric" min="0" max="9999" value="${current}"
+                class="w-24 text-center font-display text-3xl font-bold text-stone-800 focus:outline-none" />
+              <button type="button" onclick="adjustModalInput(1)" class="w-11 h-11 rounded-xl bg-amber-100 hover:bg-amber-200 font-black text-xl text-amber-800">+1</button>
+            </div>
+
+            <div class="grid grid-cols-4 gap-1.5">
+              <button type="button" onclick="adjustModalInput(5)" class="py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">+5个</button>
+              <button type="button" onclick="adjustModalInput(10)" class="py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">+10个</button>
+              <button type="button" onclick="adjustModalInput(-5)" class="py-1.5 rounded-lg bg-rose-50 text-rose-700 font-bold text-xs border border-rose-200">-5个</button>
+              <button type="button" onclick="document.getElementById('manual-count-input').value = 0" class="py-1.5 rounded-lg bg-stone-100 text-stone-600 font-bold text-xs border border-stone-200">清零</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button type="button" onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+              <button type="button" onclick="saveManualEdit(${stampId})" class="py-2.5 rounded-xl font-bold text-xs bg-stone-800 text-white">保存修改</button>
+            </div>
+          </div>
+        `);
+
+        const inputEl = document.getElementById('manual-count-input');
+        if (inputEl) {
+          setTimeout(() => {
+            inputEl.focus();
+            inputEl.select();
+          }, 80);
+          inputEl.onkeydown = (e) => {
+            if (e.key === 'Enter') saveManualEdit(stampId);
+          };
+        }
+      });
+    }
+
+    function adjustModalInput(diff) {
+      const el = document.getElementById('manual-count-input');
+      if (!el) return;
+      const parsed = parseInt(el.value, 10);
+      const base = isNaN(parsed) ? 0 : parsed;
+      el.value = Math.max(0, base + diff);
+    }
+
+    function saveManualEdit(stampId) {
+      const el = document.getElementById('manual-count-input');
+      const parsed = parseInt(el ? el.value : '0', 10);
+      const nextVal = Math.max(0, isNaN(parsed) ? 0 : parsed);
+      const prevVal = appState.counts[stampId] || 0;
+      const diff = nextVal - prevVal;
+
+      if (diff !== 0) {
+        appState.counts[stampId] = nextVal;
+        addLog({
+          type: 'edit',
+          stampId,
+          delta: diff,
+          detail: `家长手动调整印章${stampId}（${prevVal} → ${nextVal}）`
+        });
+        saveState();
+        playStampSound(diff < 0);
+        renderAll();
+        showToast(`✅ 印章${stampId}已保存为 ${nextVal} 个`);
+      } else {
+        showToast(`✅ 印章${stampId}数量保持 ${nextVal} 个`);
+      }
+      closeModal();
+    }
+
+    function openBatchQuickModal() {
+      requireParentAuth(() => {
+        const rows = STAMP_CONFIGS.map(cfg => `
+          <div class="flex items-center justify-between bg-white p-2.5 rounded-2xl border border-stone-200">
+            <div class="flex items-center gap-2">
+              <div class="w-9 h-9 flex items-center justify-center">${cfg.svg(34)}</div>
+              <div>
+                <div class="text-xs font-bold text-stone-800">印章${cfg.id} · ${cfg.shortTask}</div>
+                <div class="text-[10px] text-stone-400">${cfg.name}</div>
+              </div>
+            </div>
+            <input type="number" inputmode="numeric" min="0" data-batch-id="${cfg.id}" value="${appState.counts[cfg.id] || 0}"
+              class="w-16 text-center font-display text-lg font-bold py-1 rounded-xl border-2 border-stone-200 focus:border-amber-400 focus:outline-none" />
+          </div>
+        `).join('');
+
+        openModal(`
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-black text-base text-stone-800">✨ 批量修改印章数量</h3>
+              <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600 text-lg font-bold">✕</button>
+            </div>
+            <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+              ${rows}
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+              <button onclick="saveBatchQuickEdit()" class="py-2.5 rounded-xl font-bold text-xs bg-amber-400 text-stone-900 border border-amber-500">全部保存</button>
+            </div>
+          </div>
+        `);
+      });
+    }
+
+    function saveBatchQuickEdit() {
+      const inputs = document.querySelectorAll('[data-batch-id]');
+      let changed = 0;
+      inputs.forEach(inp => {
+        const id = parseInt(inp.getAttribute('data-batch-id'), 10);
+        const parsed = parseInt(inp.value, 10);
+        const nextVal = Math.max(0, isNaN(parsed) ? 0 : parsed);
+        const prevVal = appState.counts[id] || 0;
+        if (nextVal !== prevVal) {
+          appState.counts[id] = nextVal;
+          addLog({
+            type: 'edit',
+            stampId: id,
+            delta: nextVal - prevVal,
+            detail: `批量调整印章${id}（${prevVal} → ${nextVal}）`
+          });
+          changed++;
+        }
+      });
+      if (changed > 0) {
+        saveState();
+        playStampSound(false);
+        renderAll();
+        showToast(`✅ 已保存 ${changed} 项印章数量`);
+      }
+      closeModal();
+    }
+
+    // 印章合成：2个印章6 = 1个印章3
+    function handleCraft(times) {
+      const s6 = appState.counts[6] || 0;
+      const needed = times * 2;
+      if (s6 < needed) {
+        showToast('💡 印章6（家务印章）不足 2 个哦！');
+        return;
+      }
+      requireParentAuth(() => {
+        appState.counts[6] -= needed;
+        appState.counts[3] = (appState.counts[3] || 0) + times;
+        addLog({
+          type: 'craft',
+          stampId: 3,
+          delta: times,
+          detail: `印章合成：消耗 ${needed} 个印章6 兑换 ${times} 个印章3`
+        });
+        saveState();
+        playCelebrationSound();
+        launchConfetti();
+        renderAll();
+        showToast(`🔮 合成成功！获得 ${times} 个印章3`);
+      });
+    }
+
+    function handleCraftMax() {
+      const maxTimes = Math.floor((appState.counts[6] || 0) / 2);
+      if (maxTimes > 0) handleCraft(maxTimes);
+    }
+
+    function switchWorkshopMode(mode) {
+      workshopMode = mode;
+      const craftTab = document.getElementById('workshop-tab-craft');
+      const splitTab = document.getElementById('workshop-tab-split');
+      const craftPanel = document.getElementById('workshop-panel-craft');
+      const splitPanel = document.getElementById('workshop-panel-split');
+
+      if (mode === 'craft') {
+        craftTab.className = 'py-1.5 px-2 rounded-xl text-xs font-black transition-all bg-white text-amber-900 shadow-xs';
+        splitTab.className = 'py-1.5 px-2 rounded-xl text-xs font-bold transition-all text-amber-800/75 hover:text-amber-900';
+        craftPanel.classList.remove('hidden');
+        splitPanel.classList.add('hidden');
+      } else {
+        splitTab.className = 'py-1.5 px-2 rounded-xl text-xs font-black transition-all bg-white text-rose-700 shadow-xs';
+        craftTab.className = 'py-1.5 px-2 rounded-xl text-xs font-bold transition-all text-amber-800/75 hover:text-amber-900';
+        splitPanel.classList.remove('hidden');
+        craftPanel.classList.add('hidden');
+      }
+    }
+
+    function playSplitSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const notes = [660, 523.25, 784];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          const start = ctx.currentTime + idx * 0.07;
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.18, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.14);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.15);
+        });
+      } catch (e) {}
+    }
+
+    // 反向分解：1个印章3 = 2个印章6
+    function handleSplit(times) {
+      const s3 = appState.counts[3] || 0;
+      if (times <= 0 || s3 < times) {
+        showToast('💡 印章3（做题印章）数量不足哦！');
+        return;
+      }
+      requireParentAuth(() => {
+        const gainedS6 = times * 2;
+        appState.counts[3] -= times;
+        appState.counts[6] = (appState.counts[6] || 0) + gainedS6;
+        addLog({
+          type: 'split',
+          stampId: 6,
+          delta: gainedS6,
+          detail: `反向分解：${times}个印章3 ➔ ${gainedS6}个印章6`
+        });
+        saveState();
+        playSplitSound();
+        launchConfetti();
+        renderAll();
+        showToast(`🧩 反向分解成功！印章3 -${times}，印章6 +${gainedS6}`);
+      });
+    }
+
+    function openCustomSplitModal() {
+      const maxS3 = appState.counts[3] || 0;
+      if (maxS3 <= 0) {
+        showToast('💡 当前没有可分解的印章3哦！');
+        return;
+      }
+
+      openModal(`
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-black text-base text-stone-800">🧩 反向分解印章3</h3>
+            <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600 text-lg font-bold">✕</button>
+          </div>
+
+          <div class="bg-rose-50/70 rounded-2xl p-3 border border-rose-200 flex items-center justify-around">
+            <div class="flex flex-col items-center">
+              ${STAMP_CONFIGS[2].svg(40)}
+              <span class="text-xs font-bold text-stone-700 mt-1">现有印章3：<strong class="text-red-600">${maxS3}</strong></span>
+            </div>
+            <span class="text-lg font-black text-rose-500">1 ➔ 2</span>
+            <div class="flex flex-col items-center">
+              ${STAMP_CONFIGS[5].svg(40)}
+              <span class="text-xs font-bold text-stone-700 mt-1">现有印章6：<strong class="text-amber-600">${appState.counts[6] || 0}</strong></span>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-black text-stone-700">选择要分解几个「印章3」：</label>
+            <div class="bg-white rounded-2xl p-2.5 border-2 border-stone-200 flex items-center justify-between">
+              <button type="button" onclick="stepSplitInput(-1, ${maxS3})" class="w-10 h-10 rounded-xl bg-stone-100 font-black text-lg text-stone-700">-1</button>
+              <div class="text-center">
+                <input id="custom-split-input" type="number" min="1" max="${maxS3}" value="1" oninput="updateSplitPreview(${maxS3})"
+                  class="w-20 text-center font-display text-2xl font-bold text-red-600 focus:outline-none" />
+                <div id="split-preview-hint" class="text-[11px] font-bold text-amber-700">将获得 2 个印章6</div>
+              </div>
+              <button type="button" onclick="stepSplitInput(1, ${maxS3})" class="w-10 h-10 rounded-xl bg-rose-100 font-black text-lg text-rose-700">+1</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1.5">
+            <button type="button" onclick="setSplitInputVal(1, ${maxS3})" class="py-1.5 rounded-lg bg-stone-100 text-stone-700 font-bold text-xs">分解 1 个</button>
+            <button type="button" onclick="setSplitInputVal(Math.min(3, ${maxS3}), ${maxS3})" class="py-1.5 rounded-lg bg-rose-50 text-rose-700 font-bold text-xs border border-rose-200">分解 ${Math.min(3, maxS3)} 个</button>
+            <button type="button" onclick="setSplitInputVal(${maxS3}, ${maxS3})" class="py-1.5 rounded-lg bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200">全部 (${maxS3}个)</button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+            <button type="button" onclick="confirmCustomSplit(${maxS3})" class="py-2.5 rounded-xl font-black text-xs bg-rose-500 text-white shadow-[0_3px_0_#BE123C]">
+              确认分解
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function stepSplitInput(diff, maxS3) {
+      const inp = document.getElementById('custom-split-input');
+      if (!inp) return;
+      const next = Math.min(maxS3, Math.max(1, (parseInt(inp.value, 10) || 1) + diff));
+      inp.value = next;
+      updateSplitPreview(maxS3);
+    }
+
+    function setSplitInputVal(val, maxS3) {
+      const inp = document.getElementById('custom-split-input');
+      if (!inp) return;
+      inp.value = Math.min(maxS3, Math.max(1, val));
+      updateSplitPreview(maxS3);
+    }
+
+    function updateSplitPreview(maxS3) {
+      const inp = document.getElementById('custom-split-input');
+      const hint = document.getElementById('split-preview-hint');
+      if (!inp || !hint) return;
+      const val = Math.min(maxS3, Math.max(1, parseInt(inp.value, 10) || 1));
+      hint.textContent = `将获得 ${val * 2} 个印章6`;
+    }
+
+    function confirmCustomSplit(maxS3) {
+      const inp = document.getElementById('custom-split-input');
+      const times = Math.min(maxS3, Math.max(1, parseInt(inp ? inp.value : '1', 10) || 1));
+      closeModal();
+      handleSplit(times);
+    }
+
+    // 奖励兑换（使用自定义可编辑列表 appState.rewards）
+    function handleRedeem(rewardId) {
+      const reward = appState.rewards.find(r => r.id === rewardId);
+      if (!reward) return;
+      const current = appState.counts[reward.stampId] || 0;
+      if (current < reward.cost) {
+        showToast(`还差 ${reward.cost - current} 个印章${reward.stampId} 就可以兑换啦！`);
+        return;
+      }
+
+      const cfg = STAMP_CONFIGS.find(s => s.id === reward.stampId) || STAMP_CONFIGS[0];
+      openModal(`
+        <div class="text-center space-y-3">
+          <div class="text-5xl pt-1">${reward.emoji}</div>
+          <h3 class="font-black text-lg text-stone-800">确认兑换心愿奖励？</h3>
+          <p class="text-xs text-stone-600 leading-relaxed">
+            将消耗 <strong style="color:${cfg.color}">${reward.cost} 个印章${reward.stampId}（${cfg.shortTask}）</strong><br/>
+            兑换：<strong class="text-stone-900 text-sm">「${reward.title}」</strong>
+          </p>
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">再攒攒</button>
+            <button onclick="confirmExecuteRedeem('${reward.id}')" class="py-2.5 rounded-xl font-bold text-xs bg-rose-500 text-white shadow-[0_3px_0_#BE123C]">确认兑换 🎉</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function confirmExecuteRedeem(rewardId) {
+      closeModal();
+      requireParentAuth(() => {
+        const reward = appState.rewards.find(r => r.id === rewardId);
+        if (!reward) return;
+        const current = appState.counts[reward.stampId] || 0;
+        if (current < reward.cost) return;
+
+        appState.counts[reward.stampId] = current - reward.cost;
+        addLog({
+          type: 'redeem',
+          stampId: reward.stampId,
+          delta: -reward.cost,
+          detail: `兑换奖励「${reward.title}」（消耗${reward.cost}个印章${reward.stampId}）`
+        });
+        saveState();
+        playCelebrationSound();
+        launchConfetti();
+        renderAll();
+        showToast(`🎉 兑换成功！快去享受「${reward.title}」吧！`);
+      });
+    }
+
+    /**
+     * ============================================================================
+     * 7.5 后台兑换规则管理（支持选择印章 1-6 新增/编辑/删除）
+     * ============================================================================
+     */
+    const REWARD_EMOJI_CHOICES = ['🎁', '🎒', '🧁', '✏️', '📺', '🧩', '🎮', '🍦', '📖', '💻', '🚲', '🎨', '🍿', '🎟️', '🏅', '🌟'];
+    let draftRewardStampId = 3;
+    let draftRewardEmoji = '🎁';
+
+    function openRewardRuleEditor(rewardId = null) {
+      requireParentAuth(() => {
+        const existing = rewardId ? appState.rewards.find(r => r.id === rewardId) : null;
+        draftRewardStampId = existing ? existing.stampId : 1;
+        draftRewardEmoji = existing ? existing.emoji : '🎁';
+
+        const stampSelectorHtml = STAMP_CONFIGS.map(cfg => `
+          <button type="button" onclick="selectDraftRewardStamp(${cfg.id})" data-rule-stamp="${cfg.id}"
+            class="rule-stamp-btn flex flex-col items-center p-1.5 rounded-2xl border-2 transition-all bg-white">
+            <div class="w-8 h-8 flex items-center justify-center">${cfg.svg(30)}</div>
+            <span class="text-[10px] font-black mt-0.5" style="color:${cfg.color}">印章${cfg.id}</span>
+            <span class="text-[9px] text-stone-400 truncate max-w-full">${cfg.shortTask}</span>
+          </button>
+        `).join('');
+
+        const emojiSelectorHtml = REWARD_EMOJI_CHOICES.map(em => `
+          <button type="button" onclick="selectDraftRewardEmoji('${em}')" data-rule-emoji="${em}"
+            class="rule-emoji-btn w-8 h-8 rounded-xl border text-base flex items-center justify-center bg-white transition-transform">
+            ${em}
+          </button>
+        `).join('');
+
+        openModal(`
+          <div class="space-y-3 max-h-[85vh] overflow-y-auto no-scrollbar pr-0.5">
+            <div class="flex items-center justify-between">
+              <h3 class="font-black text-base text-stone-800">${existing ? '✏️ 编辑兑换规则' : '➕ 新增印章兑换规则'}</h3>
+              <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600 text-lg font-bold">✕</button>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-black text-stone-700">1. 选择消耗哪种印章（印章1 ~ 印章6）</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                ${stampSelectorHtml}
+              </div>
+            </div>
+
+            <div class="bg-white p-2.5 rounded-2xl border border-stone-200 flex items-center justify-between gap-2">
+              <label for="rule-cost-input" class="text-xs font-black text-stone-700">2. 需要消耗几个印章？</label>
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="stepRuleCost(-1)" class="w-8 h-8 rounded-lg bg-stone-100 font-black text-stone-700">-1</button>
+                <input id="rule-cost-input" type="number" min="1" max="999" value="${existing ? existing.cost : 5}"
+                  class="w-16 text-center font-display text-xl font-bold py-1 rounded-xl border-2 border-amber-300 focus:outline-none" />
+                <button type="button" onclick="stepRuleCost(1)" class="w-8 h-8 rounded-lg bg-amber-100 font-black text-amber-800">+1</button>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label for="rule-title-input" class="text-xs font-black text-stone-700">3. 可兑换什么奖励？</label>
+              <input id="rule-title-input" type="text" maxlength="20" value="${existing ? existing.title : ''}"
+                placeholder="例如：游乐园门票1张 / 免除1次警示 / 零花钱10元"
+                class="w-full text-xs font-bold px-3 py-2.5 rounded-xl border-2 border-stone-200 focus:border-amber-400 focus:outline-none bg-white" />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-black text-stone-700">4. 选择奖品小图标</label>
+              <div class="grid grid-cols-8 gap-1">
+                ${emojiSelectorHtml}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <button type="button" onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+              <button type="button" onclick="saveRewardRule('${existing ? existing.id : ''}')"
+                class="py-2.5 rounded-xl font-black text-xs bg-amber-400 text-stone-900 border border-amber-500 shadow-xs">
+                保存兑换规则
+              </button>
+            </div>
+          </div>
+        `);
+
+        refreshDraftRewardEditorUI();
+      });
+    }
+
+    function refreshDraftRewardEditorUI() {
+      document.querySelectorAll('.rule-stamp-btn').forEach(btn => {
+        const id = parseInt(btn.getAttribute('data-rule-stamp'), 10);
+        if (id === draftRewardStampId) {
+          btn.classList.add('border-amber-500', 'bg-amber-50/80', 'scale-105', 'shadow-xs');
+          btn.classList.remove('border-stone-200');
+        } else {
+          btn.classList.remove('border-amber-500', 'bg-amber-50/80', 'scale-105', 'shadow-xs');
+          btn.classList.add('border-stone-200');
+        }
+      });
+
+      document.querySelectorAll('.rule-emoji-btn').forEach(btn => {
+        const em = btn.getAttribute('data-rule-emoji');
+        if (em === draftRewardEmoji) {
+          btn.classList.add('border-amber-500', 'bg-amber-100', 'scale-110');
+          btn.classList.remove('border-stone-200');
+        } else {
+          btn.classList.remove('border-amber-500', 'bg-amber-100', 'scale-110');
+          btn.classList.add('border-stone-200');
+        }
+      });
+    }
+
+    function selectDraftRewardStamp(id) {
+      draftRewardStampId = id;
+      refreshDraftRewardEditorUI();
+    }
+
+    function selectDraftRewardEmoji(em) {
+      draftRewardEmoji = em;
+      refreshDraftRewardEditorUI();
+    }
+
+    function stepRuleCost(diff) {
+      const inp = document.getElementById('rule-cost-input');
+      if (!inp) return;
+      inp.value = Math.max(1, (parseInt(inp.value, 10) || 1) + diff);
+    }
+
+    function saveRewardRule(existingId) {
+      const titleInput = document.getElementById('rule-title-input');
+      const costInput = document.getElementById('rule-cost-input');
+      const title = (titleInput ? titleInput.value : '').trim();
+      const cost = Math.max(1, parseInt(costInput ? costInput.value : '1', 10) || 1);
+
+      if (!title) {
+        showToast('💡 请输入可兑换的奖励名称哦！');
+        if (titleInput) titleInput.focus();
+        return;
+      }
+
+      if (existingId) {
+        const idx = appState.rewards.findIndex(r => r.id === existingId);
+        if (idx !== -1) {
+          appState.rewards[idx] = {
+            ...appState.rewards[idx],
+            title,
+            emoji: draftRewardEmoji,
+            stampId: draftRewardStampId,
+            cost
+          };
+        }
+        showToast(`✅ 已保存更新「${title}」`);
+      } else {
+        appState.rewards.unshift({
+          id: 'r_' + Date.now(),
+          title,
+          emoji: draftRewardEmoji,
+          stampId: draftRewardStampId,
+          cost,
+          tag: `印章${draftRewardStampId}兑换`
+        });
+        showToast(`🎉 已新增并保存「${cost}个印章${draftRewardStampId} 兑换 ${title}」`);
+      }
+
+      saveState();
+      closeModal();
+      renderAll();
+    }
+
+    function deleteRewardRule(rewardId) {
+      const target = appState.rewards.find(r => r.id === rewardId);
+      if (!target) return;
+      requireParentAuth(() => {
+        openModal(`
+          <div class="text-center space-y-3">
+            <div class="text-3xl">${target.emoji}</div>
+            <h3 class="font-black text-base text-stone-800">删除这条兑换规则？</h3>
+            <p class="text-xs text-stone-500">确定删除「${target.cost}个印章${target.stampId} 兑换 ${target.title}」吗？</p>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+              <button onclick="confirmDeleteRewardRule('${rewardId}')" class="py-2.5 rounded-xl font-bold text-xs bg-rose-600 text-white">确认删除</button>
+            </div>
+          </div>
+        `);
+      });
+    }
+
+    function confirmDeleteRewardRule(rewardId) {
+      appState.rewards = appState.rewards.filter(r => r.id !== rewardId);
+      saveState();
+      closeModal();
+      renderAll();
+      showToast('🗑️ 已删除并保存更改');
+    }
+
+    function confirmResetDefaultRewards() {
+      requireParentAuth(() => {
+        openModal(`
+          <div class="text-center space-y-3">
+            <div class="text-3xl">🔄</div>
+            <h3 class="font-black text-base text-stone-800">恢复默认兑换规则？</h3>
+            <p class="text-xs text-stone-500">将还原为初始的 9 条标准兑换规则（不会影响当前已有的印章数量）。</p>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+              <button onclick="executeResetDefaultRewards()" class="py-2.5 rounded-xl font-bold text-xs bg-amber-400 text-stone-900 border border-amber-500">确认恢复</button>
+            </div>
+          </div>
+        `);
+      });
+    }
+
+    function executeResetDefaultRewards() {
+      appState.rewards = JSON.parse(JSON.stringify(DEFAULT_REWARD_ITEMS));
+      saveState();
+      closeModal();
+      renderAll();
+      showToast('✅ 已恢复默认兑换规则并保存');
+    }
+
+    /**
+     * ============================================================================
+     * 7.8 云端家庭账户绑定/登录弹窗（实现手机桌面 App 与电脑端数据互通）
+     * ============================================================================
+     */
+    function refreshAccountUI() {
+      const bridge = window.CloudSyncBridge;
+      const labelEl = document.getElementById('cloud-account-label');
+      const uidEl = document.getElementById('cloud-uid-label');
+      if (!bridge || !bridge.user) return;
+
+      if (uidEl) uidEl.textContent = bridge.user.uid;
+      if (labelEl) {
+        if (bridge.user.email) {
+          labelEl.textContent = `📧 ${bridge.user.email}`;
+          labelEl.className = 'font-bold text-sky-700 truncate';
+        } else {
+          labelEl.textContent = '游客自动云端存档（单设备）';
+          labelEl.className = 'font-bold text-stone-700 truncate';
+        }
+      }
+    }
+    window.refreshAccountUI = refreshAccountUI;
+
+    function openAccountSyncModal() {
+      const bridge = window.CloudSyncBridge;
+      const currentEmail = bridge && bridge.user && bridge.user.email ? bridge.user.email : '';
+
+      openModal(`
+        <div class="space-y-3.5">
+          <div class="flex items-center justify-between">
+            <h3 class="font-black text-base text-stone-800">🔑 家庭云端账号同步</h3>
+            <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600 text-lg font-bold">✕</button>
+          </div>
+
+          <p class="text-xs text-stone-500 leading-relaxed">
+            当前设备已自动开启云端保存。如果您希望在<strong>手机桌面 App</strong> 和 <strong>电脑网页</strong> 之间共享同一份数据，请绑定或登录家长邮箱账号：
+          </p>
+
+          ${currentEmail ? `
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-800 space-y-1">
+              <div class="font-black">✅ 已绑定家庭邮箱：${currentEmail}</div>
+              <div class="text-[11px]">在另一台设备登录此邮箱即可自动同步所有印章数据。</div>
+            </div>
+          ` : ''}
+
+          <div class="space-y-2">
+            <input id="sync-email-input" type="email" placeholder="输入家长邮箱 (例如 parent@family.com)" value="${currentEmail}"
+              class="w-full text-xs font-bold px-3 py-2.5 rounded-xl border-2 border-stone-200 focus:border-sky-400 focus:outline-none bg-white" />
+            <input id="sync-pass-input" type="password" placeholder="设置或输入密码 (至少6位)"
+              class="w-full text-xs font-bold px-3 py-2.5 rounded-xl border-2 border-stone-200 focus:border-sky-400 focus:outline-none bg-white" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onclick="submitAccountSync('bind')"
+              class="py-2.5 rounded-xl font-black text-xs bg-amber-400 text-stone-900 border border-amber-500">
+              绑定当前数据到邮箱
+            </button>
+            <button type="button" onclick="submitAccountSync('login')"
+              class="py-2.5 rounded-xl font-black text-xs bg-sky-600 text-white">
+              登录已有邮箱同步
+            </button>
+          </div>
+
+          ${currentEmail ? `
+            <button type="button" onclick="handleSwitchToGuest()"
+              class="w-full py-2 rounded-xl text-[11px] font-bold text-stone-400 hover:text-stone-600">
+              退出邮箱并切换回游客模式
+            </button>
+          ` : ''}
+        </div>
+      `);
+    }
+
+    async function submitAccountSync(mode) {
+      const email = (document.getElementById('sync-email-input')?.value || '').trim();
+      const pass = (document.getElementById('sync-pass-input')?.value || '').trim();
+      if (!email || pass.length < 6) {
+        showToast('💡 请输入有效邮箱及至少6位密码');
+        return;
+      }
+      try {
+        showToast('⏳ 正在连接云端家庭账户...');
+        await window.CloudSyncBridge.bindOrLoginEmail(email, pass, mode);
+        closeModal();
+        showToast(mode === 'bind' ? '🎉 绑定成功！数据已同步至家庭邮箱' : '🎉 登录成功！已加载云端数据');
+      } catch (err) {
+        console.error(err);
+        const msg = err.code === 'auth/email-already-in-use'
+          ? '该邮箱已注册，请点击右侧「登录已有邮箱同步」'
+          : (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')
+            ? '邮箱或密码不正确，请检查后重试'
+            : `操作失败: ${err.message}`;
+        showToast(`❌ ${msg}`);
+      }
+    }
+
+    async function handleSwitchToGuest() {
+      await window.CloudSyncBridge.switchToGuest();
+      closeModal();
+      showToast('已切换回游客本地+云端模式');
+    }
+
+    /**
+     * ============================================================================
+     * 8. UI 渲染函数
+     * ============================================================================
+     */
+    function triggerStampCardAnimation(stampId) {
+      const iconWrap = document.getElementById(`stamp-svg-${stampId}`);
+      const ripple = document.getElementById(`stamp-ripple-${stampId}`);
+      if (iconWrap) {
+        iconWrap.classList.remove('animate-stamp-drop');
+        void iconWrap.offsetWidth;
+        iconWrap.classList.add('animate-stamp-drop');
+      }
+      if (ripple) {
+        ripple.classList.remove('animate-ink-ripple');
+        void ripple.offsetWidth;
+        ripple.classList.add('animate-ink-ripple');
+      }
+    }
+
+    function renderStampsGrid() {
+      const grid = document.getElementById('stamps-grid');
+      if (!grid) return;
+
+      grid.innerHTML = STAMP_CONFIGS.map(cfg => {
+        const count = appState.counts[cfg.id] || 0;
+        return `
+          <div class="sketch-card bg-white rounded-3xl p-3 flex flex-col justify-between relative overflow-hidden">
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full" style="background:${cfg.badgeBg};color:${cfg.color}">
+                印章 ${cfg.id}
+              </span>
+              <span class="text-[11px] font-bold text-stone-500 truncate max-w-[92px]" title="${cfg.task}">
+                ${cfg.shortTask}
+              </span>
+            </div>
+
+            <div class="my-1.5 py-2 rounded-2xl flex flex-col items-center justify-center relative" style="background:${cfg.bgTint}">
+              <div id="stamp-ripple-${cfg.id}" class="w-14 h-14 rounded-full border-2 pointer-events-none opacity-0 absolute" style="border-color:${cfg.color}"></div>
+              <div id="stamp-svg-${cfg.id}" class="relative z-10 cursor-pointer" onclick="stampPlusOne(${cfg.id})" title="点击盖章">
+                ${cfg.svg(66)}
+              </div>
+
+              <button onclick="openManualEditModal(${cfg.id})" title="点击手动修改数量"
+                class="mt-1 px-3 py-0.5 rounded-full bg-white/95 border shadow-xs flex items-baseline gap-1 hover:scale-105 transition-transform"
+                style="border-color:${cfg.borderTint}">
+                <span class="font-display text-2xl font-bold leading-none" style="color:${cfg.color}">${count}</span>
+                <span class="text-[10px] font-bold text-stone-400">个 ✎</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5 mt-1">
+              <button onclick="stampMinusOne(${cfg.id})"
+                class="btn-3d w-10 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 font-black text-sm flex items-center justify-center border border-stone-200"
+                title="扣除1个">
+                -1
+              </button>
+              <button onclick="stampPlusOne(${cfg.id})"
+                class="btn-3d flex-1 h-9 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs"
+                style="background:${cfg.color}">
+                <span>💮</span>
+                <span>${cfg.isPenalty ? '记1次' : '盖一个'}</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderShop() {
+      const s3 = appState.counts[3] || 0;
+      const s6 = appState.counts[6] || 0;
+
+      const craftSource = document.getElementById('craft-source-icon');
+      const craftTarget = document.getElementById('craft-target-icon');
+      if (craftSource && craftSource.innerHTML === '') {
+        craftSource.innerHTML = STAMP_CONFIGS[5].svg(38) + STAMP_CONFIGS[5].svg(38);
+      }
+      if (craftTarget && craftTarget.innerHTML === '') {
+        craftTarget.innerHTML = STAMP_CONFIGS[2].svg(44);
+      }
+
+      document.getElementById('craft-s6-count').textContent = s6;
+      document.getElementById('craft-s3-count').textContent = s3;
+      const maxCraft = Math.floor(s6 / 2);
+      document.getElementById('craft-max-num').textContent = maxCraft;
+      document.getElementById('btn-craft-one').disabled = maxCraft < 1;
+      document.getElementById('btn-craft-max').disabled = maxCraft < 1;
+
+      const splitSource = document.getElementById('split-source-icon');
+      const splitTarget = document.getElementById('split-target-icon');
+      if (splitSource && splitSource.innerHTML === '') {
+        splitSource.innerHTML = STAMP_CONFIGS[2].svg(44);
+      }
+      if (splitTarget && splitTarget.innerHTML === '') {
+        splitTarget.innerHTML = STAMP_CONFIGS[5].svg(38) + STAMP_CONFIGS[5].svg(38);
+      }
+
+      document.getElementById('split-s3-count').textContent = s3;
+      document.getElementById('split-s6-count').textContent = s6;
+      document.getElementById('split-max-num').textContent = s3;
+      document.getElementById('btn-split-one').disabled = s3 < 1;
+      document.getElementById('btn-split-custom').disabled = s3 < 1;
+
+      const allStampsBar = document.getElementById('shop-all-stamps-bar');
+      if (allStampsBar) {
+        allStampsBar.innerHTML = STAMP_CONFIGS.map(cfg => {
+          const cnt = appState.counts[cfg.id] || 0;
+          const isSelected = shopFilter === String(cfg.id);
+          return `
+            <button onclick="setShopFilter('${isSelected ? 'all' : cfg.id}')" title="点击筛选印章${cfg.id}可兑换奖品"
+              class="flex flex-col items-center py-1.5 px-1 rounded-xl border transition-all ${
+                isSelected ? 'ring-2 ring-amber-400 bg-amber-50/70 border-amber-300' : 'border-transparent hover:bg-stone-50'
+              }">
+              <div class="w-7 h-7 flex items-center justify-center">${cfg.svg(26)}</div>
+              <span class="text-[10px] font-bold text-stone-500 leading-tight mt-0.5">印章${cfg.id}</span>
+              <span class="font-display text-sm font-bold leading-tight" style="color:${cfg.color}">${cnt}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      const shopFiltersEl = document.getElementById('shop-filter-pills');
+      if (shopFiltersEl) {
+        const pills = [
+          { key: 'all', label: `全部奖品 (${appState.rewards.length})` },
+          { key: 'ready', label: '✨ 可立即兑换' },
+          ...STAMP_CONFIGS.map(c => ({ key: String(c.id), label: `用印章${c.id}` }))
+        ];
+        shopFiltersEl.innerHTML = pills.map(p => {
+          const active = shopFilter === p.key;
+          return `
+            <button onclick="setShopFilter('${p.key}')"
+              class="px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${
+                active
+                  ? 'bg-stone-800 text-white border-stone-800'
+                  : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+              }">
+              ${p.label}
+            </button>
+          `;
+        }).join('');
+      }
+
+      const filteredRewards = appState.rewards.filter(item => {
+        if (shopFilter === 'all') return true;
+        if (shopFilter === 'ready') return (appState.counts[item.stampId] || 0) >= item.cost;
+        return String(item.stampId) === shopFilter;
+      });
+
+      const list = document.getElementById('rewards-list');
+      if (filteredRewards.length === 0) {
+        const filterStampId = parseInt(shopFilter, 10);
+        list.innerHTML = `
+          <div class="bg-white rounded-3xl p-6 text-center border-2 border-dashed border-stone-200 space-y-2.5">
+            <div class="text-3xl">🎁</div>
+            <p class="text-xs font-bold text-stone-500">
+              ${shopFilter === 'ready'
+                ? '暂时还没有凑够印章的奖品，继续加油盖章吧！'
+                : `当前还没有设置「印章${filterStampId}」对应的兑换奖品哦`}
+            </p>
+            ${!isNaN(filterStampId) ? `
+              <button onclick="switchTab('history'); setTimeout(() => { openRewardRuleEditor(); selectDraftRewardStamp(${filterStampId}); }, 80)"
+                class="btn-3d inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-amber-400 text-stone-900 font-black text-xs border border-amber-500">
+                ➕ 为印章${filterStampId}添加兑换奖品
+              </button>
+            ` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = filteredRewards.map(item => {
+        const cfg = STAMP_CONFIGS.find(s => s.id === item.stampId) || STAMP_CONFIGS[0];
+        const have = appState.counts[item.stampId] || 0;
+        const canRedeem = have >= item.cost;
+        const pct = Math.min(100, Math.round((have / item.cost) * 100));
+
+        return `
+          <div class="sketch-card bg-white rounded-2xl p-3.5 flex items-center justify-between gap-3 ${canRedeem ? 'ring-2 ring-amber-300/80' : ''}">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="w-12 h-12 rounded-2xl bg-[#FDFBF7] border border-[#EFE8DC] flex items-center justify-center text-2xl shrink-0">
+                ${item.emoji}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-black text-sm text-stone-800 truncate">${item.title}</span>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1">
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:${cfg.badgeBg};color:${cfg.color}">
+                    ${item.cost}个印章${item.stampId} (${cfg.shortTask})
+                  </span>
+                </div>
+                <div class="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden mt-2">
+                  <div class="h-full rounded-full transition-all duration-300" style="width:${pct}%;background:${cfg.color}"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="shrink-0">
+              ${canRedeem
+                ? `<button onclick="handleRedeem('${item.id}')"
+                    class="btn-3d px-3.5 py-2 rounded-xl font-black text-xs text-white shadow-sm"
+                    style="background:${cfg.color}">
+                    立即兑换
+                  </button>`
+                : `<div class="px-2.5 py-1.5 rounded-xl bg-stone-100 text-stone-400 font-bold text-[11px] text-center">
+                    还差 <span class="text-stone-600 font-display">${item.cost - have}</span> 个
+                  </div>`
+              }
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setShopFilter(key) {
+      shopFilter = key;
+      renderShop();
+    }
+
+    function renderBackendManagement() {
+      const backendStampsEl = document.getElementById('backend-stamps-grid');
+      if (backendStampsEl) {
+        backendStampsEl.innerHTML = STAMP_CONFIGS.map(cfg => {
+          const cnt = appState.counts[cfg.id] || 0;
+          return `
+            <div class="rounded-2xl p-2 border flex flex-col items-center justify-between" style="background:${cfg.bgTint};border-color:${cfg.borderTint}">
+              <div class="flex items-center gap-1 w-full justify-between">
+                <span class="text-[10px] font-black" style="color:${cfg.color}">印章${cfg.id}</span>
+                <span class="text-[9px] text-stone-500 truncate">${cfg.shortTask}</span>
+              </div>
+              <div class="my-1 cursor-pointer" onclick="openManualEditModal(${cfg.id})">
+                ${cfg.svg(34)}
+              </div>
+              <div class="flex items-center justify-between w-full gap-1">
+                <button onclick="stampMinusOne(${cfg.id})" class="w-6 h-6 rounded-lg bg-white text-stone-600 font-black text-xs border border-stone-200 flex items-center justify-center">-</button>
+                <button onclick="openManualEditModal(${cfg.id})" class="font-display text-base font-bold px-1" style="color:${cfg.color}">${cnt}</button>
+                <button onclick="stampPlusOne(${cfg.id})" class="w-6 h-6 rounded-lg text-white font-black text-xs flex items-center justify-center" style="background:${cfg.color}">+</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const backendRewardsEl = document.getElementById('backend-rewards-list');
+      if (backendRewardsEl) {
+        if (appState.rewards.length === 0) {
+          backendRewardsEl.innerHTML = `
+            <div class="text-center py-4 text-xs text-stone-400 border border-dashed border-stone-200 rounded-2xl">
+              暂无兑换规则，点击右上角「➕ 新增兑换」添加吧！
+            </div>
+          `;
+        } else {
+          backendRewardsEl.innerHTML = appState.rewards.map(item => {
+            const cfg = STAMP_CONFIGS.find(s => s.id === item.stampId) || STAMP_CONFIGS[0];
+            const have = appState.counts[item.stampId] || 0;
+            return `
+              <div class="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#FDFBF7] border border-[#EFE8DC]">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                  <span class="text-xl shrink-0">${item.emoji}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs font-black text-stone-800 truncate">${item.title}</div>
+                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md" style="background:${cfg.badgeBg};color:${cfg.color}">
+                        消耗 ${item.cost} 个印章${item.stampId}（${cfg.shortTask}）
+                      </span>
+                      <span class="text-[10px] text-stone-400">库存: ${have}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button onclick="openRewardRuleEditor('${item.id}')"
+                    class="px-2 py-1 rounded-lg bg-white border border-stone-200 text-[11px] font-bold text-stone-600 hover:bg-stone-50">
+                    编辑
+                  </button>
+                  <button onclick="deleteRewardRule('${item.id}')"
+                    class="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-[11px] font-bold text-rose-600 hover:bg-rose-100">
+                    删除
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    function renderHistory() {
+      renderBackendManagement();
+      const filtersEl = document.getElementById('history-filters');
+      const filterOptions = [
+        { key: 'all', label: '全部记录' },
+        { key: 'redeem', label: '🎁 兑换与合成/分解' },
+        ...STAMP_CONFIGS.map(c => ({ key: String(c.id), label: `印章${c.id}·${c.shortTask}` }))
+      ];
+
+      filtersEl.innerHTML = filterOptions.map(opt => {
+        const active = historyFilter === opt.key;
+        return `
+          <button onclick="setHistoryFilter('${opt.key}')"
+            class="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+              active
+                ? 'bg-stone-800 text-white border-stone-800'
+                : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+            }">
+            ${opt.label}
+          </button>
+        `;
+      }).join('');
+
+      const listEl = document.getElementById('history-list');
+      const filtered = appState.logs.filter(log => {
+        if (historyFilter === 'all') return true;
+        if (historyFilter === 'redeem') return log.type === 'redeem' || log.type === 'craft' || log.type === 'split';
+        return String(log.stampId) === historyFilter;
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-3xl p-8 text-center border-2 border-dashed border-stone-200 space-y-2">
+            <div class="text-3xl">📭</div>
+            <p class="text-xs font-bold text-stone-400">暂无相关的印章记录哦，快去盖章打卡吧！</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(log => {
+        const cfg = STAMP_CONFIGS.find(s => s.id === log.stampId) || STAMP_CONFIGS[0];
+        const d = new Date(log.time);
+        const timeStr = `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const isPositive = log.delta > 0;
+
+        return `
+          <div class="bg-white rounded-2xl p-3 border border-[#EFE8DC] flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style="background:${cfg.bgTint}">
+                ${cfg.svg(34)}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-stone-800 truncate">${log.detail}</div>
+                <div class="text-[10px] text-stone-400 mt-0.5">${timeStr}</div>
+              </div>
+            </div>
+            <div class="font-display text-base font-bold shrink-0 px-2.5 py-0.5 rounded-lg ${
+              isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+            }">
+              ${isPositive ? '+' + log.delta : log.delta}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setHistoryFilter(key) {
+      historyFilter = key;
+      renderHistory();
+    }
+
+    function updateHeaderStats() {
+      const positiveTotal = [1, 2, 3, 4, 6].reduce((sum, id) => sum + (appState.counts[id] || 0), 0);
+      document.getElementById('stat-total').textContent = positiveTotal;
+
+      const todayStr = new Date().toDateString();
+      const todayAdded = appState.logs
+        .filter(l => new Date(l.time).toDateString() === todayStr && l.delta > 0 && l.stampId !== 5)
+        .reduce((sum, l) => sum + l.delta, 0);
+      document.getElementById('stat-today').textContent = `+${todayAdded}`;
+
+      const redeemableCount = appState.rewards.filter(r => (appState.counts[r.stampId] || 0) >= r.cost).length;
+      document.getElementById('stat-redeemable').textContent = redeemableCount;
+
+      const lockBtn = document.getElementById('parent-lock-btn');
+      const lockIcon = document.getElementById('lock-icon');
+      const lockText = document.getElementById('lock-text');
+      if (appState.parentLock) {
+        lockBtn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-1 bg-rose-50 border-rose-200 text-rose-700 active:scale-95';
+        lockIcon.textContent = '🔒';
+        lockText.textContent = '家长锁';
+      } else {
+        lockBtn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-1 bg-stone-100 border-stone-200 text-stone-600 active:scale-95';
+        lockIcon.textContent = '🔓';
+        lockText.textContent = '未锁定';
+      }
+    }
+
+    function renderAll() {
+      updateHeaderStats();
+      renderStampsGrid();
+      renderShop();
+      renderHistory();
+    }
+
+    /**
+     * ============================================================================
+     * 9. 底部导航切换 & 添加到手机桌面引导弹窗 & 备份导出
+     * ============================================================================
+     */
+    function switchTab(tab) {
+      currentTab = tab;
+      ['stamps', 'shop', 'history'].forEach(t => {
+        const view = document.getElementById(`view-${t}`);
+        const nav = document.getElementById(`nav-${t}`);
+        if (t === tab) {
+          view.classList.remove('hidden');
+          nav.className = 'nav-item flex flex-col items-center justify-center py-1.5 rounded-2xl font-bold text-xs transition-all bg-rose-50 text-rose-600';
+        } else {
+          view.classList.add('hidden');
+          nav.className = 'nav-item flex flex-col items-center justify-center py-1.5 rounded-2xl font-bold text-xs transition-all text-stone-500 hover:bg-stone-50';
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    let draftIconPref = null;
+
+    function openPwaModal() {
+      draftIconPref = { ...appState.iconPref };
+
+      const presetList = [
+        { id: 'stamp1', label: '印章1·跳绳' },
+        { id: 'stamp2', label: '印章2·整洁' },
+        { id: 'stamp3', label: '印章3·爱心' },
+        { id: 'stamp4', label: '印章4·晚安' },
+        { id: 'stamp5', label: '印章5·叉叉' },
+        { id: 'stamp6', label: '印章6·海星' },
+        { id: 'badge', label: '印章全家福' },
+      ];
+
+      const presetsHtml = presetList.map(p => `
+        <button type="button" onclick="selectIconPreset('${p.id}')" data-icon-preset="${p.id}"
+          class="icon-preset-btn flex flex-col items-center p-1.5 rounded-2xl border-2 transition-all bg-white">
+          <div class="w-10 h-10 flex items-center justify-center">${getPresetIconSvg(p.id, 36)}</div>
+          <span class="text-[10px] font-bold text-stone-600 mt-0.5 truncate w-full text-center">${p.label}</span>
+        </button>
+      `).join('');
+
+      const colorsHtml = ICON_BG_PALETTE.map(c => `
+        <button type="button" onclick="selectIconBgColor('${c.hex}')" data-icon-bg="${c.hex}" title="${c.name}"
+          class="icon-bg-btn w-8 h-8 rounded-full border-2 transition-transform flex items-center justify-center shadow-xs"
+          style="background:${c.hex};border-color:${c.border}">
+        </button>
+      `).join('');
+
+      openModal(`
+        <div class="space-y-3.5 max-h-[84vh] overflow-y-auto no-scrollbar pr-0.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xl">🎨</span>
+              <h3 class="font-black text-base text-stone-800">自定义桌面图标 & 装到桌面</h3>
+            </div>
+            <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600 text-lg font-bold">✕</button>
+          </div>
+
+          <div class="bg-gradient-to-b from-sky-100/70 via-indigo-50/60 to-amber-50/70 rounded-2xl p-3.5 border border-stone-200 flex flex-col items-center justify-center relative">
+            <span class="absolute top-2 left-2.5 text-[10px] font-bold text-stone-400">手机桌面预览</span>
+            <div class="w-16 h-16 rounded-[18px] shadow-md border border-white/80 overflow-hidden bg-white mt-1">
+              <img id="preview-desktop-icon-img" src="${latestGeneratedIconPng}" alt="桌面图标预览" class="w-full h-full object-cover" />
+            </div>
+            <span id="preview-desktop-app-name" class="mt-1.5 text-xs font-bold text-stone-800 px-2 py-0.5 rounded-full bg-white/75 shadow-2xs max-w-[140px] truncate">
+              ${draftIconPref.appName || '印章小管家'}
+            </span>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-black text-stone-700">1. 选择图标图案</label>
+              <button type="button" onclick="triggerIconPhotoUpload()"
+                class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100">
+                📷 上传相册照片
+              </button>
+              <input type="file" id="icon-photo-upload" accept="image/*" class="hidden" onchange="handleIconPhotoFile(event)" />
+            </div>
+            <div class="grid grid-cols-4 gap-1.5">
+              ${presetsHtml}
+              <button type="button" onclick="triggerIconPhotoUpload()" data-icon-preset="custom"
+                class="icon-preset-btn flex flex-col items-center justify-center p-1.5 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50/80 transition-all">
+                <div id="custom-photo-slot" class="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden text-lg">
+                  ${draftIconPref.customImageDataUrl
+                    ? `<img src="${draftIconPref.customImageDataUrl}" class="w-full h-full object-cover" />`
+                    : '🖼️'}
+                </div>
+                <span class="text-[10px] font-bold text-stone-600 mt-0.5">相册图片</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2.5 bg-white p-3 rounded-2xl border border-stone-200">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-black text-stone-700 shrink-0">2. 图标底色</span>
+              <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                ${colorsHtml}
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1 border-t border-stone-100">
+              <label for="icon-app-name-input" class="text-xs font-black text-stone-700 shrink-0">3. 桌面名称</label>
+              <input id="icon-app-name-input" type="text" maxlength="10" value="${draftIconPref.appName || '印章小管家'}"
+                oninput="updateDraftAppName(this.value)" placeholder="输入桌面显示的App名字"
+                class="w-40 text-right text-xs font-bold px-2.5 py-1.5 rounded-xl border border-stone-200 focus:border-amber-400 focus:outline-none bg-stone-50" />
+            </div>
+          </div>
+
+          <button type="button" onclick="saveAndApplyIconPref()"
+            class="btn-3d w-full py-2.5 rounded-xl font-black text-xs bg-amber-400 hover:bg-amber-500 text-stone-900 border-2 border-amber-500 shadow-[0_3px_0_#D97706]">
+            ✅ 保存图标设置（先保存再添加到桌面）
+          </button>
+
+          <details class="bg-white rounded-2xl border border-stone-200 p-2.5 text-[11px] text-stone-600">
+            <summary class="font-black text-stone-800 cursor-pointer select-none flex items-center justify-between">
+              <span>📲 如何将本页面添加到手机桌面？</span>
+              <span class="text-amber-600">点击展开 ▾</span>
+            </summary>
+            <div class="mt-2 pt-2 border-t border-stone-100 space-y-2 leading-relaxed">
+              <div>
+                <strong class="text-stone-800">🍎 苹果 iPhone / iPad (Safari)：</strong><br/>
+                点击底部中间 <strong>「分享 ⬆️」</strong> → <strong>「添加到主屏幕 ➕」</strong> → 右上角 <strong>「添加」</strong>。
+              </div>
+              <div>
+                <strong class="text-stone-800">🤖 安卓手机 (Chrome / 系统浏览器)：</strong><br/>
+                点击浏览器菜单 <strong>「⋮ 或 ☰」</strong> → <strong>「添加到主屏幕 / 安装应用」</strong>。
+              </div>
+            </div>
+          </details>
+        </div>
+      `);
+
+      refreshDraftIconModalUI();
+    }
+
+    async function refreshDraftIconModalUI() {
+      if (!draftIconPref) return;
+      document.querySelectorAll('.icon-preset-btn').forEach(btn => {
+        const id = btn.getAttribute('data-icon-preset');
+        if (id === draftIconPref.presetId) {
+          btn.classList.add('border-amber-500', 'bg-amber-50/70', 'scale-105', 'shadow-xs');
+          btn.classList.remove('border-stone-200', 'border-stone-300');
+        } else {
+          btn.classList.remove('border-amber-500', 'bg-amber-50/70', 'scale-105', 'shadow-xs');
+          btn.classList.add(id === 'custom' ? 'border-stone-300' : 'border-stone-200');
+        }
+      });
+
+      document.querySelectorAll('.icon-bg-btn').forEach(btn => {
+        const hex = btn.getAttribute('data-icon-bg');
+        if (hex === draftIconPref.bgColor) {
+          btn.classList.add('ring-2', 'ring-amber-500', 'scale-110');
+          btn.innerHTML = '<span class="text-xs font-black text-stone-700">✓</span>';
+        } else {
+          btn.classList.remove('ring-2', 'ring-amber-500', 'scale-110');
+          btn.innerHTML = '';
+        }
+      });
+
+      const previewPng = await renderDesktopIconToPng(draftIconPref);
+      const previewImg = document.getElementById('preview-desktop-icon-img');
+      if (previewImg) previewImg.src = previewPng;
+
+      const previewName = document.getElementById('preview-desktop-app-name');
+      if (previewName) previewName.textContent = (draftIconPref.appName || '').trim() || '印章小管家';
+    }
+
+    function selectIconPreset(presetId) {
+      if (!draftIconPref) return;
+      if (presetId === 'custom' && !draftIconPref.customImageDataUrl) {
+        triggerIconPhotoUpload();
+        return;
+      }
+      draftIconPref.presetId = presetId;
+      refreshDraftIconModalUI();
+    }
+
+    function selectIconBgColor(hex) {
+      if (!draftIconPref) return;
+      draftIconPref.bgColor = hex;
+      refreshDraftIconModalUI();
+    }
+
+    function updateDraftAppName(val) {
+      if (!draftIconPref) return;
+      draftIconPref.appName = val;
+      const previewName = document.getElementById('preview-desktop-app-name');
+      if (previewName) previewName.textContent = val.trim() || '印章小管家';
+    }
+
+    function triggerIconPhotoUpload() {
+      const inp = document.getElementById('icon-photo-upload');
+      if (inp) inp.click();
+    }
+
+    function handleIconPhotoFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // 压缩为 256x256 JPEG 确保云端和本地均可可靠保存
+          const size = 256;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+
+          const minSide = Math.min(img.width, img.height);
+          const sx = (img.width - minSide) / 2;
+          const sy = (img.height - minSide) / 2;
+          ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+
+          const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          if (draftIconPref) {
+            draftIconPref.customImageDataUrl = croppedDataUrl;
+            draftIconPref.presetId = 'custom';
+            const slot = document.getElementById('custom-photo-slot');
+            if (slot) slot.innerHTML = `<img src="${croppedDataUrl}" class="w-full h-full object-cover" />`;
+            refreshDraftIconModalUI();
+            showToast('📷 照片已裁剪为桌面图标！');
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      event.target.value = '';
+    }
+
+    async function saveAndApplyIconPref() {
+      if (!draftIconPref) return;
+      appState.iconPref = {
+        ...draftIconPref,
+        appName: (draftIconPref.appName || '').trim() || '印章小管家'
+      };
+      saveState();
+      await applyDesktopIconConfig(appState.iconPref);
+      closeModal();
+      showToast('🎨 桌面图标已保存！现在可添加到主屏幕啦');
+    }
+
+    function exportBackup() {
+      const dataStr = JSON.stringify(appState, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateTag = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `印章小管家备份_${dateTag}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('📤 已导出备份文件');
+    }
+
+    function triggerImportBackup() {
+      document.getElementById('import-file-input').click();
+    }
+
+    function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed || typeof parsed.counts !== 'object') throw new Error('格式无效');
+          appState = normalizeState(parsed);
+          saveState();
+          applyDesktopIconConfig(appState.iconPref);
+          renderAll();
+          showToast('📥 备份数据恢复并保存成功！');
+        } catch (err) {
+          showToast('❌ 备份文件格式不正确');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function confirmResetAll() {
+      openModal(`
+        <div class="text-center space-y-3">
+          <div class="text-4xl">🗑️</div>
+          <h3 class="font-black text-base text-stone-800">确定清空所有数据吗？</h3>
+          <p class="text-xs text-stone-500">清空后所有印章数量将归零，历史账本也会被清除且无法恢复哦！</p>
+          <div class="grid grid-cols-2 gap-2 pt-2">
+            <button onclick="closeModal()" class="py-2.5 rounded-xl font-bold text-xs bg-stone-100 text-stone-600">取消</button>
+            <button onclick="executeResetAll()" class="py-2.5 rounded-xl font-bold text-xs bg-rose-600 text-white">确认清空</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function executeResetAll() {
+      closeModal();
+      requireParentAuth(() => {
+        const preservedIconPref = { ...appState.iconPref };
+        const preservedRewards = JSON.parse(JSON.stringify(appState.rewards));
+        appState = JSON.parse(JSON.stringify(defaultState));
+        appState.iconPref = preservedIconPref;
+        appState.rewards = preservedRewards;
+        saveState();
+        renderAll();
+        showToast('🗑️ 已重置所有印章数据并保存');
+      });
+    }
+
+    /**
+     * ============================================================================
+     * 10. 弹窗与 Toast 与 彩带粒子特效
+     * ============================================================================
+     */
+    function openModal(html) {
+      const backdrop = document.getElementById('modal-backdrop');
+      const card = document.getElementById('modal-card');
+      card.innerHTML = html;
+      backdrop.classList.remove('hidden');
+      backdrop.classList.add('flex');
+    }
+
+    function closeModal() {
+      const backdrop = document.getElementById('modal-backdrop');
+      backdrop.classList.add('hidden');
+      backdrop.classList.remove('flex');
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const inner = document.getElementById('toast-inner');
+      inner.textContent = msg;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2200);
+    }
+
+    function launchConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const colors = ['#D83B66', '#E69D28', '#D92626', '#2B5B84', '#10B981', '#F59E0B'];
+      const particles = Array.from({ length: 65 }, () => ({
+        x: canvas.width / 2 + (Math.random() - 0.5) * 140,
+        y: canvas.height * 0.45,
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 14 - 4,
+        size: Math.random() * 7 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.25
+      }));
+
+      let frame = 0;
+      function tick() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.48;
+          p.rot += p.vrot;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+          ctx.restore();
+        });
+        frame++;
+        if (frame < 75) {
+          requestAnimationFrame(tick);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    /**
+     * ============================================================================
+     * 11. 初始化启动与桌面唤醒自动同步
+     * ============================================================================
+     */
+    window.addEventListener('DOMContentLoaded', async () => {
+      const logoEl = document.getElementById('header-logo');
+      if (logoEl) logoEl.innerHTML = STAMP_CONFIGS[0].svg(32);
+
+      // 优先从本地 IndexedDB 秒开恢复最新状态
+      const savedLocal = await readFromIndexedDB();
+      if (savedLocal) {
+        appState = normalizeState(savedLocal);
+      }
+
+      initPWA();
+      renderAll();
+    });
+
+    // 从手机桌面 PWA 切回前台时自动拉取最新云端状态
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && window.CloudSyncBridge && window.CloudSyncBridge.ready && window.CloudSyncBridge.user) {
+        window.CloudSyncBridge.attachUserDocListener(window.CloudSyncBridge.user.uid);
+      }
+    });
+  </script>
+</body>
+</html>
